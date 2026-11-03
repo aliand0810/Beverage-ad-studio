@@ -147,6 +147,16 @@ body.dbg-collapsed .status-bar{bottom:38px}
 .debug-cat{color:var(--acc);font-weight:600;margin-right:.35rem;font-size:.62rem}
 .debug-data{margin-top:.25rem;padding:.35rem .45rem;background:#0a0a12;border:1px solid var(--border);border-radius:2px;font-size:.65rem;color:#a8d8b0;max-height:160px;overflow:auto;white-space:pre-wrap;word-break:break-all}
 .hidden{display:none!important}
+.opt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.4rem;margin-top:.5rem}
+.var-card{padding:.5rem;border-radius:var(--r);border:1px solid var(--border);background:var(--bg2);cursor:pointer;font-size:.68rem;user-select:none}
+.var-card.selected{border-color:var(--acc);color:var(--acc);background:rgba(229,193,90,.08)}
+.var-card small{display:block;color:var(--dim);font-size:.6rem;margin-top:.15rem}
+.ad-tag{display:inline-block;font-size:.55rem;padding:.08rem .35rem;border:1px solid var(--border);border-radius:2px;color:var(--acc);margin-left:.3rem}
+.ad-prompt{margin-top:.4rem;font-size:.62rem}
+.ad-prompt summary{cursor:pointer;color:var(--dim);font-family:var(--fm)}
+.ad-prompt pre{white-space:pre-wrap;word-break:break-word;background:var(--bg);border:1px solid var(--border);padding:.4rem;border-radius:3px;max-height:140px;overflow:auto;color:#a8d8b0;font-family:var(--fm);margin-top:.3rem}
+.ad-analysis{font-size:.62rem;color:var(--dim);margin-top:.35rem;line-height:1.4}
+.ad-placeholder img{max-width:70%;max-height:55%;border-radius:3px;opacity:.55}
 @media(max-width:480px){h1{font-size:1.5rem}.ads-grid{grid-template-columns:1fr}.debug-panel{height:190px}.status-bar{bottom:200px}}
 </style>
 </head>
@@ -230,6 +240,19 @@ body.dbg-collapsed .status-bar{bottom:38px}
 </div></div>
 </div>
 
+<div class="section open" id="section-variants">
+<div class="section-header" data-toggle="section-variants">
+<span class="section-title">🎥 4 · Variantes & IA <span class="badge" id="variants-badge">1 / photo</span></span>
+<span class="chevron">▼</span>
+</div>
+<div class="section-body"><div class="section-content">
+<div class="label">Mouvements de caméra — chaque variante choisie = une pub de plus par photo</div>
+<div class="opt-grid" id="variant-grid"></div>
+<label class="check"><input type="checkbox" id="use-analysis" checked><span><strong style="color:var(--ink)">Analyse IA du produit</strong> — l'IA lit la photo (marque, type de boisson, couleurs, étiquette) et écrit un prompt sur mesure.</span></label>
+<label class="check"><input type="checkbox" id="use-frame" checked><span><strong style="color:var(--ink)">Recadrer en 9:16</strong> — place le produit dans un cadre vertical avec fond flouté, pour une vidéo plein écran sans déformation.</span></label>
+</div></div>
+</div>
+
 <button type="button" class="btn btn-primary" id="generate-btn" disabled>🎬 Générer les publicités</button>
 <button type="button" class="btn btn-stop" id="stop-btn">⏹ Arrêter la génération</button>
 
@@ -285,6 +308,17 @@ const API_KEYS_STORAGE='beverage_ad_keys_v1';
 const SETTINGS_STORAGE='beverage_ad_settings_v1';
 const DEBUG_MAX=600;
 const MAX_IMAGE_SIZE=15*1024*1024;
+const MODEL_TEXT='agnes-2.5-flash';
+
+// Catalogue de mouvements (inspiré du catalogue d'angles du Hyperreal Lab)
+const VARIANTS=[
+{id:'orbit',name:'🔄 Orbite 360°',hint:'rotation lente autour',cam:'slow 180-degree orbit around the product at eye level, product perfectly centered'},
+{id:'push',name:'🔍 Push-in',hint:'avancée vers l\'étiquette',cam:'slow dolly push-in from medium shot to a tight close-up on the label'},
+{id:'splash',name:'💦 Splash',hint:'éclaboussures ralenti',cam:'static hero framing while liquid splashes and ice cubes burst around the product in slow motion, droplets frozen in the air'},
+{id:'reveal',name:'🌅 Révélation',hint:'sortie de l\'ombre',cam:'product starts in shadow, a light sweep slowly reveals it from left to right, ending on a bright hero shot'},
+{id:'top',name:'⬇️ Plongée',hint:'descente du dessus',cam:'camera descends from a high top-down angle to a low heroic angle, ending slightly below the product'},
+{id:'macro',name:'🔬 Macro',hint:'gouttes de condensation',cam:'extreme macro slide along the surface, condensation droplets rolling down, ending on the full product'}
+];
 
 const BADGES=[
 {id:'new',name:'NOUVEAU',emoji:'✨',lines:['NOUVEAU'],colors:['#d62828','#ffffff'],shape:'star',prompt:'bright red and white starburst sticker reading "NOUVEAU"'},
@@ -308,7 +342,7 @@ const AMBIANCE_PRESETS=[
 ['🖤 Luxe sombre','Fond sombre dramatique, éclairage spot sur le produit, fumée légère, contraste fort, design luxe']
 ];
 
-const state={keyPool:[],images:[],selectedBadge:null,burnBadge:true,ambiance:'',durationFrames:121,ads:[],isRunning:false,stopRequested:false,isPlaying:false,workingPollBuilderName:null};
+const state={keyPool:[],images:[],selectedBadge:null,burnBadge:true,ambiance:'',durationFrames:121,variants:['orbit'],useAnalysis:true,useFrame:true,ads:[],isRunning:false,stopRequested:false,isPlaying:false,workingPollBuilderName:null};
 
 // ═══════════ UTILS ═══════════
 const $=id=>document.getElementById(id);
@@ -331,8 +365,8 @@ function legacyCopy(text,cb){const ta=document.createElement('textarea');ta.valu
 function toggleDebugCollapse(){debugCollapsed=!debugCollapsed;$('debug-panel').classList.toggle('collapsed',debugCollapsed);document.body.classList.toggle('dbg-collapsed',debugCollapsed);$('debug-collapse-btn').textContent=debugCollapsed?'+':'−';saveSettings()}
 
 // ═══════════ RÉGLAGES PERSISTANTS ═══════════
-function saveSettings(){try{localStorage.setItem(SETTINGS_STORAGE,JSON.stringify({badge:state.selectedBadge,burn:state.burnBadge,ambiance:state.ambiance,duration:state.durationFrames,dbg:debugCollapsed}))}catch(e){}}
-function loadSettings(){try{const s=JSON.parse(localStorage.getItem(SETTINGS_STORAGE)||'{}');if(s.badge&&BADGES.some(b=>b.id===s.badge))state.selectedBadge=s.badge;if(typeof s.burn==='boolean')state.burnBadge=s.burn;if(typeof s.ambiance==='string')state.ambiance=s.ambiance;if([81,121,161,241].includes(s.duration))state.durationFrames=s.duration;if(s.dbg)toggleDebugCollapse()}catch(e){}}
+function saveSettings(){try{localStorage.setItem(SETTINGS_STORAGE,JSON.stringify({badge:state.selectedBadge,burn:state.burnBadge,ambiance:state.ambiance,duration:state.durationFrames,dbg:debugCollapsed,variants:state.variants,useAnalysis:state.useAnalysis,useFrame:state.useFrame}))}catch(e){}}
+function loadSettings(){try{const s=JSON.parse(localStorage.getItem(SETTINGS_STORAGE)||'{}');if(s.badge&&BADGES.some(b=>b.id===s.badge))state.selectedBadge=s.badge;if(typeof s.burn==='boolean')state.burnBadge=s.burn;if(typeof s.ambiance==='string')state.ambiance=s.ambiance;if([81,121,161,241].includes(s.duration))state.durationFrames=s.duration;if(Array.isArray(s.variants)){const v=s.variants.filter(x=>VARIANTS.some(y=>y.id===x));if(v.length)state.variants=v}if(typeof s.useAnalysis==='boolean')state.useAnalysis=s.useAnalysis;if(typeof s.useFrame==='boolean')state.useFrame=s.useFrame;if(s.dbg)toggleDebugCollapse()}catch(e){}}
 
 // ═══════════ CLÉS API (auto-enregistrement) ═══════════
 function getStoredKeys(){try{const a=JSON.parse(localStorage.getItem(API_KEYS_STORAGE)||'[]');return Array.isArray(a)?a.filter(k=>typeof k==='string'&&k.trim()):[]}catch(e){return[]}}
@@ -457,17 +491,21 @@ async function pollVideo(task,onProgress){
   throw new Error('Délai maximal dépassé');
 }
 
-function buildAdPrompt(ambiance){
+function buildAdPrompt(ambiance,variant,analysis){
+  const A=analysis||{};
   const badge=BADGES.find(b=>b.id===state.selectedBadge);
   const burned=badge&&state.burnBadge;
   return[
     'PRODUCT ADVERTISEMENT VIDEO — 9:16 VERTICAL, COMMERCIAL QUALITY.',
-    'SUBJECT: the exact beverage product shown in the starting image. Preserve it IDENTICALLY: same can/bottle shape, label, colors, logo and proportions. Do NOT redesign or deform it.',
-    'ACTION: slow, elegant camera movement around the product. Subtle liquid motion, condensation droplets, light reflections. The product stays CENTERED and PROMINENT.',
+    'SUBJECT: the exact beverage product shown in the starting image'+(A.product?' — '+A.product:'')+'. Preserve it IDENTICALLY: same '+(A.container||'can/bottle')+' shape, label, colors, logo and proportions. Do NOT redesign or deform it.',
+    A.label?'LABEL DETAILS TO KEEP: '+A.label+'.':'',
+    A.colors?'PRODUCT COLORS: '+A.colors+'. Lighting and background should complement these colors.':'',
+    'ACTION: subtle liquid motion'+(A.liquid?' ('+A.liquid+')':'')+', condensation droplets, light reflections. The product stays CENTERED and PROMINENT.',
     'AMBIANCE: '+(ambiance||'premium commercial lighting, soft reflections, shallow depth of field.'),
     burned?'PROMOTIONAL STICKER: the starting image already contains a promotional sticker in the top-right corner. Keep it EXACTLY as it is — fixed, sharp, unchanged, never moving, never redrawn.':'',
     (badge&&!burned)?'PROMOTIONAL BADGE: a '+badge.prompt+' fixed in the top-right corner for the whole video, sharp and readable.':'',
-    'CAMERA: one continuous smooth movement — slow orbit, push-in or gentle reveal. No cuts, no shake.',
+    'CAMERA: '+(variant?variant.cam:'slow orbit, push-in or gentle reveal')+'. One continuous smooth movement, no cuts, no shake.',
+    A.mood?'BRAND MOOD: '+A.mood+'.':'',
     'STYLE: high-end beverage commercial, cinematic lighting, realistic glass and liquid physics, rich appetizing colors, 35mm film grain, professional color grading.',
     'FORMAT: 9:16 vertical, 24fps. No other text, no subtitles, no watermark'+(badge?' apart from the promotional sticker':'')+'.'
   ].filter(Boolean).join('\n\n');
@@ -513,8 +551,10 @@ function handleUrls(text){const urls=String(text).split(/\s+/).filter(s=>/^(http
 // Incrustation du badge sur l'image (texte net, garanti)
 async function composeWithBadge(item){
   const badge=BADGES.find(b=>b.id===state.selectedBadge);
-  if(!badge||!state.burnBadge||!item.dataUri)return item.dataUri||item.remoteUrl;
-  const img=await loadImg(item.dataUri);
+  if(!item.dataUri)return item.remoteUrl;
+  const base=state.useFrame?await frameTo916(item.dataUri):item.dataUri;
+  if(!badge||!state.burnBadge)return base;
+  const img=await loadImg(base);
   const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;const x=c.getContext('2d');x.drawImage(img,0,0);
   const R=Math.round(Math.min(c.width,c.height)*.15);const cx=c.width-R*1.25,cy=R*1.25;
   x.save();x.translate(cx,cy);x.rotate(.2);x.shadowColor='rgba(0,0,0,.45)';x.shadowBlur=R*.25;x.shadowOffsetY=R*.06;x.fillStyle=badge.colors[0];x.beginPath();
@@ -531,6 +571,35 @@ async function composeWithBadge(item){
   return c.toDataURL('image/jpeg',.9);
 }
 
+// ═══════════ ANALYSE IA (vision) ═══════════
+const analysisCache=new Map();
+async function analyzeProduct(item){
+  if(analysisCache.has(item.id))return analysisCache.get(item.id);
+  const p=(async()=>{try{
+    const res=await apiFetch(API_BASE+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:MODEL_TEXT,temperature:.2,max_tokens:500,response_format:{type:'json_object'},messages:[
+      {role:'system',content:'You are a beverage packaging analyst. Return ONLY valid JSON.'},
+      {role:'user',content:[{type:'text',text:'Describe the beverage product in this photo for a video ad prompt. Return JSON: {"product":"brand + product name + flavor if readable","container":"can / glass bottle / plastic bottle / glass / carton","label":"key label text, logo and graphic elements","colors":"main product colors","liquid":"liquid color and texture (fizzy, still, creamy...)","mood":"brand mood in 5 words"}'},{type:'image_url',image_url:{url:item.dataUri||item.remoteUrl}}]}]})},'Analyse',2);
+    const d=await res.json();const c=d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content;
+    const j=JSON.parse(String(c||'').replace(/^```(json)?|```$/g,'').trim());
+    debugLog('success','ANALYSE',item.name,j);return j;
+  }catch(e){if(e.message==='Arrêt demandé')throw e;debugLog('warn','ANALYSE',item.name+' : analyse indisponible, prompt générique ('+e.message.slice(0,80)+')');analysisCache.delete(item.id);return null}})();
+  analysisCache.set(item.id,p);return p;
+}
+
+// Cadre 9:16 local : fond flouté de la photo + produit entier au centre
+async function frameTo916(src){
+  const img=await loadImg(src);const W=720,H=1280;
+  const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
+  const cover=Math.max(W/img.naturalWidth,H/img.naturalHeight);
+  x.filter='blur(28px) brightness(.85) saturate(1.2)';
+  x.drawImage(img,(W-img.naturalWidth*cover)/2,(H-img.naturalHeight*cover)/2,img.naturalWidth*cover,img.naturalHeight*cover);
+  x.filter='none';
+  const fit=Math.min(W/img.naturalWidth,H*.82/img.naturalHeight);const w=img.naturalWidth*fit,h=img.naturalHeight*fit;
+  x.shadowColor='rgba(0,0,0,.5)';x.shadowBlur=40;x.shadowOffsetY=12;
+  x.drawImage(img,(W-w)/2,(H-h)/2,w,h);
+  return c.toDataURL('image/jpeg',.9);
+}
+
 // ═══════════ RENDU ═══════════
 function renderImages(){
   $('images-grid').innerHTML=state.images.map(img=>'<div class="image-card"><img src="'+esc(img.dataUri||img.remoteUrl)+'" alt="" loading="lazy">'+(img.source==='web'||img.source==='lien'?'<span class="src">🌐</span>':'')+'<div class="img-name">'+esc(img.name)+'</div><button class="rm" data-remove="'+img.id+'" aria-label="Retirer">✕</button></div>').join('');
@@ -538,7 +607,8 @@ function renderImages(){
 }
 function renderBadges(){$('badge-grid').innerHTML=BADGES.map(b=>'<div class="badge-card'+(state.selectedBadge===b.id?' selected':'')+'" data-badge="'+b.id+'"><span class="be">'+b.emoji+'</span><span class="bn">'+b.name+'</span></div>').join('')}
 function renderPresets(){$('preset-grid').innerHTML=AMBIANCE_PRESETS.map((p,i)=>'<div class="preset'+(state.ambiance===p[1]?' on':'')+'" data-preset="'+i+'" title="'+esc(p[1])+'">'+esc(p[0])+'</div>').join('')}
-function updateGenerateBtn(){const b=$('generate-btn');const k=hasActiveKey(),n=state.images.length;b.disabled=!k||!n||state.isRunning;b.textContent=state.isRunning?'Génération en cours…':!k?'🔑 Ajoutez vos clés API':!n?'📸 Ajoutez des photos de boissons':'🎬 Générer '+n+' publicité'+(n>1?'s animées':' animée')}
+function renderVariants(){$('variant-grid').innerHTML=VARIANTS.map(v=>'<div class="var-card'+(state.variants.includes(v.id)?' selected':'')+'" data-variant="'+v.id+'">'+v.name+'<small>'+v.hint+'</small></div>').join('');$('variants-badge').textContent=state.variants.length+' / photo';updateGenerateBtn()}
+function updateGenerateBtn(){const b=$('generate-btn');const k=hasActiveKey(),n=state.images.length*Math.max(1,state.variants.length);b.disabled=!k||!n||state.isRunning;b.textContent=state.isRunning?'Génération en cours…':!k?'🔑 Ajoutez vos clés API':!n?'📸 Ajoutez des photos de boissons':'🎬 Générer '+n+' publicité'+(n>1?'s animées':' animée')}
 
 // Rendu complet uniquement quand la structure change ; la progression met à jour le texte seul (sinon les vidéos se rechargent chaque seconde)
 function renderAds(){
@@ -555,7 +625,9 @@ function updateAdCard(i){
   if(ad.status==='done')body='<video src="'+esc(ad.url)+'" controls preload="metadata" playsinline loop></video><div class="ad-actions"><button data-dl="'+i+'">⬇ Télécharger</button><button data-copy="'+i+'">🔗 Lien</button></div>';
   else if(ad.status==='error')body='<div class="ad-placeholder" style="color:var(--err)">'+esc((ad.error||'').slice(0,140))+'</div>';
   else body='<div class="ad-placeholder"><div class="spinner-mini"></div><span class="prog">'+esc(ad.progress)+'</span></div>';
-  el.innerHTML='<div class="ad-card-header"><span>🍹 Pub '+(i+1)+' · '+esc(ad.image.name.slice(0,18))+'</span>'+icon+'</div><div class="ad-card-body">'+body+'</div>';
+  const A=ad.analysis;const extra=(A?'<div class="ad-analysis">🔎 '+esc([A.product,A.container,A.liquid].filter(Boolean).join(' · '))+'</div>':'')+(ad.prompt?'<details class="ad-prompt"><summary>🎬 Prompt vidéo</summary><pre>'+esc(ad.prompt)+'</pre><div class="ad-actions"><button data-cprompt="'+i+'">Copier le prompt</button></div></details>':'');
+  if(ad.status==='loading'&&ad.startImage)body=body.replace('<div class="spinner-mini"></div>','<img src="'+esc(ad.startImage)+'" alt=""><div class="spinner-mini"></div>');
+  el.innerHTML='<div class="ad-card-header"><span>🍹 Pub '+(i+1)+' · '+esc(ad.image.name.slice(0,14))+'<span class="ad-tag">'+esc(ad.variant?ad.variant.name:'')+'</span></span>'+icon+'</div><div class="ad-card-body">'+body+extra+'</div>';
   updateAdsSummary();
 }
 function updateAdsSummary(){const done=state.ads.filter(a=>a.status==='done').length;$('ads-count').textContent=done+'/'+state.ads.length;$('play-all-btn').disabled=!done;$('retry-btn').disabled=state.isRunning||!state.ads.some(a=>a.status==='error')}
@@ -587,7 +659,7 @@ function startGeneration(){
   if(!hasActiveKey())return showToast('Ajoutez au moins une clé API','error');
   if(!state.images.length)return showToast('Ajoutez des photos de boissons','error');
   state.ambiance=$('ambiance-input').value.trim();saveSettings();
-  state.ads=state.images.map(img=>({status:'pending',progress:'En attente…',url:null,error:null,image:img}));
+  const vs=VARIANTS.filter(v=>state.variants.includes(v.id));state.ads=[];state.images.forEach(img=>(vs.length?vs:[null]).forEach(v=>state.ads.push({status:'pending',progress:'En attente…',url:null,error:null,image:img,variant:v})));
   renderAds();runQueue(state.ads.map((_,i)=>i));
 }
 function retryFailed(){if(state.isRunning)return;const idx=[];state.ads.forEach((a,i)=>{if(a.status==='error'){Object.assign(a,{status:'pending',progress:'En attente…',error:null});idx.push(i);updateAdCard(i)}});if(idx.length)runQueue(idx)}
@@ -597,12 +669,15 @@ async function generateOneAd(i,w){
   ad.status='loading';ad.progress='Préparation de l\'image…';updateAdCard(i);
   debugLog('info','W'+(w+1),'Pub '+(i+1)+' → '+ad.image.name);
   try{
+    if(state.useAnalysis&&!ad.analysis){ad.progress='Analyse IA du produit…';updateAdCard(i);ad.analysis=await analyzeProduct(ad.image);ad._rendered=null}
     const image=await composeWithBadge(ad.image);
-    ad.progress='Envoi de la tâche…';updateAdCard(i);
-    const task=await createVideoTask(buildAdPrompt(state.ambiance),image,state.durationFrames);
+    if(image&&image.startsWith('data:'))ad.startImage=image;
+    ad.prompt=buildAdPrompt(state.ambiance,ad.variant,ad.analysis);
+    ad.progress='Envoi de la tâche…';ad._rendered=null;updateAdCard(i);
+    const task=await createVideoTask(ad.prompt,image,state.durationFrames);
     const prog=p=>{ad.progress=p;updateAdCard(i)};
     ad.url=await pollVideo(task,prog);
-    ad.status='done';ad.progress='Terminé';updateAdCard(i);
+    ad.status='done';ad.progress='Terminé';ad._rendered=null;updateAdCard(i);
     debugLog('success','W'+(w+1),'Pub '+(i+1)+' prête ✓',ad.url);
   }catch(e){
     ad.status='error';ad.error=e.message==='Arrêt demandé'?'Arrêtée par l\'utilisateur':e.message;updateAdCard(i);
@@ -657,10 +732,14 @@ function stopPlayback(){state.isPlaying=false;const v=$('player-video');v.pause(
   $('duration-select').value=String(state.durationFrames);
   $('duration-select').addEventListener('change',e=>{state.durationFrames=parseInt(e.target.value,10);saveSettings()});
 
+  renderVariants();
+  $('variant-grid').addEventListener('click',e=>{const c=e.target.closest('[data-variant]');if(!c)return;const id=c.dataset.variant;if(state.variants.includes(id)){if(state.variants.length===1)return showToast('Gardez au moins une variante','warn');state.variants=state.variants.filter(x=>x!==id)}else state.variants.push(id);renderVariants();saveSettings()});
+  $('use-analysis').checked=state.useAnalysis;$('use-analysis').addEventListener('change',e=>{state.useAnalysis=e.target.checked;saveSettings()});
+  $('use-frame').checked=state.useFrame;$('use-frame').addEventListener('change',e=>{state.useFrame=e.target.checked;saveSettings()});
   $('generate-btn').addEventListener('click',startGeneration);
   $('retry-btn').addEventListener('click',retryFailed);
   $('stop-btn').addEventListener('click',()=>{state.stopRequested=true;debugLog('warn','STOP','Arrêt demandé');setStatus('Arrêt en cours…')});
-  $('ads-grid').addEventListener('click',e=>{const d=e.target.closest('[data-dl]');if(d)return downloadAd(+d.dataset.dl);const c=e.target.closest('[data-copy]');if(c){const u=state.ads[+c.dataset.copy].url;(navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(()=>showToast('Lien copié')).catch(()=>legacyCopy(u,ok=>showToast(ok?'Lien copié':'Copie impossible',ok?'success':'error')))}});
+  $('ads-grid').addEventListener('click',e=>{const d=e.target.closest('[data-dl]');if(d)return downloadAd(+d.dataset.dl);const cp=e.target.closest('[data-cprompt]');if(cp){const t=state.ads[+cp.dataset.cprompt].prompt;return legacyCopy(t,ok=>showToast(ok?'Prompt copié':'Copie impossible',ok?'success':'error'))}const c=e.target.closest('[data-copy]');if(c){const u=state.ads[+c.dataset.copy].url;(navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(()=>showToast('Lien copié')).catch(()=>legacyCopy(u,ok=>showToast(ok?'Lien copié':'Copie impossible',ok?'success':'error')))}});
 
   $('play-all-btn').addEventListener('click',playAll);
   $('player-close').addEventListener('click',stopPlayback);
