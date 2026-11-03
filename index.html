@@ -376,6 +376,7 @@ async function apiFetch(url,options,label,maxAttempts,pinnedKey){
       }
       if([400,401,403,404,413,422].includes(res.status)){const e=new Error('HTTP '+res.status+' — '+errTxt.slice(0,300));e.status=res.status;e.fatal=true;throw e}
       if(res.status===429){const ra=parseInt(res.headers.get('Retry-After')||'0',10);const wait=ra>0?ra:Math.min(120,20+attempt*15);keyObj.cooldownUntil=Date.now()+wait*1000;debugLog('warn','RATELIMIT','Clé '+kid+' → cooldown '+wait+'s');renderKeysStatus();continue}
+      {let m='';try{const j=JSON.parse(errTxt);m=j.error&&j.error.message||''}catch(_){}lastErr=new Error('Serveur Agnes HTTP '+res.status+(m?' — '+m.replace(/\s*\(request id:[^)]*\)/,''):''));}
       const wait=Math.min(60,8+attempt*6);setStatus('Service occupé — reprise dans '+wait+'s');await waitSec(wait);
     }catch(e){
       if(e.fatal||e.message==='Arrêt demandé')throw e;
