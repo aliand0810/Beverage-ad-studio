@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Beverage Ad Studio — Photos → Publicités animées</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+--bg:#0a0a12;--bg2:#12121c;--bg3:#1a1a28;
+--panel:#16161f;--border:#2a2a3a;
+--ink:#e8e6e0;--dim:#8a8896;--faint:#4a4858;
+--acc:#e5c15a;--acc2:#e87b35;--acc3:#4a9d6a;
+--ok:#4a9d6a;--err:#c85a4a;--warn:#d4a017;
+--r:6px;--fs:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;
+--fm:ui-monospace,'SF Mono',Menlo,monospace;
+}
+html,body{background:var(--bg)}
+body{font-family:var(--fs);background:var(--bg);color:var(--ink);min-height:100vh;padding:1.5rem 1rem 24rem;font-size:15px;line-height:1.55;max-width:1000px;margin:0 auto}
+header{margin-bottom:1.2rem;text-align:center;padding:1rem 0 1.4rem;position:relative}
+header::after{content:'';position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:160px;height:1px;background:linear-gradient(90deg,transparent,var(--acc),transparent);opacity:.5}
+h1{font-size:1.8rem;font-weight:300;margin-bottom:.3rem;background:linear-gradient(135deg,var(--acc2),var(--acc));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.subtitle{font-size:.82rem;color:var(--dim);font-style:italic}
+
+.toast{position:fixed;top:1.5rem;left:50%;transform:translateX(-50%) translateY(-120px);background:var(--bg3);color:var(--ink);border:1px solid var(--border);border-left:3px solid var(--acc);padding:.85rem 1.4rem;border-radius:var(--r);font-size:.85rem;box-shadow:0 8px 32px rgba(0,0,0,.6);z-index:3000;opacity:0;transition:transform .35s cubic-bezier(.2,.9,.3,1.2),opacity .35s;max-width:90vw;text-align:center;display:flex;align-items:center;gap:.6rem}
+.toast.visible{transform:translateX(-50%) translateY(0);opacity:1}
+.toast.success{border-left-color:var(--ok)}.toast.error{border-left-color:var(--err)}.toast.warn{border-left-color:var(--warn)}
+
+.banner{background:var(--panel);border:1px solid var(--border);border-left:2px solid var(--acc);padding:1rem 1.15rem;border-radius:var(--r);font-size:.78rem;color:var(--dim);margin-bottom:1.2rem;line-height:1.6}
+.banner strong{color:var(--ink)}.banner .hl{color:var(--acc)}
+
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:1.2rem 1.3rem;margin-bottom:1rem}
+.panel.ok{box-shadow:inset 3px 0 0 var(--ok)}
+.label{display:block;font-size:.7rem;color:var(--dim);margin-bottom:.4rem;text-transform:uppercase;letter-spacing:.12em;font-weight:600}
+.hint{font-size:.7rem;color:var(--dim);margin-top:.4rem}
+input[type=text],input[type=url],textarea,select{width:100%;padding:.8rem .95rem;border-radius:var(--r);border:1px solid var(--border);background:var(--bg2);color:var(--ink);font-family:var(--fm);font-size:.78rem;margin-bottom:.6rem}
+textarea{font-family:var(--fs);font-size:.85rem;line-height:1.5;resize:vertical;min-height:60px}
+#api-keys-input{font-family:var(--fm);font-size:.75rem;-webkit-text-security:disc}
+#api-keys-input.show{-webkit-text-security:none}
+input:focus,textarea:focus,select:focus{outline:none;border-color:var(--acc)}
+
+.btn{width:100%;padding:.85rem 1.2rem;border-radius:var(--r);border:1px solid var(--border);background:var(--bg2);color:var(--ink);font-size:.82rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;margin-bottom:.6rem;transition:all .2s;font-family:inherit}
+.btn:hover:not(:disabled){background:var(--bg3);border-color:var(--acc)}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn-sm{width:auto;padding:.55rem .9rem;font-size:.7rem;margin:0}
+.btn-primary{border-color:var(--acc);background:linear-gradient(135deg,rgba(232,123,53,.2),rgba(229,193,90,.15));color:var(--acc);font-size:1rem;padding:1.3rem;letter-spacing:.2em}
+.btn-stop{border-color:var(--err);color:var(--err);background:transparent;display:none}
+.btn-stop.visible{display:block}
+.row{display:flex;gap:.5rem;align-items:stretch}
+.row input{margin-bottom:0;flex:1}
+
+.status{font-size:.72rem;padding:.55rem .8rem;border-radius:var(--r);margin-bottom:.5rem;display:flex;align-items:center;gap:.6rem;background:var(--bg2);color:var(--dim);border:1px solid var(--border)}
+.status.ok{background:rgba(74,157,106,.08);color:var(--ok);border-color:rgba(74,157,106,.3)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--faint);flex-shrink:0}
+.status.ok .dot{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+
+.keys-list{margin-top:.6rem}
+.key-row{padding:.35rem .65rem;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);margin-bottom:.3rem;display:flex;justify-content:space-between;align-items:center;gap:.5rem;font-family:var(--fm);font-size:.68rem}
+.key-row .key-id{color:var(--acc);font-weight:600}
+.key-state{font-size:.6rem;padding:.12rem .45rem;border-radius:2px;background:rgba(74,157,106,.15);color:var(--ok);border:1px solid rgba(74,157,106,.3);letter-spacing:.06em;text-transform:uppercase;font-weight:700}
+.key-state.cool{background:rgba(212,160,23,.15);color:var(--warn);border-color:rgba(212,160,23,.3)}
+.key-state.dead{background:rgba(200,90,74,.15);color:var(--err);border-color:rgba(200,90,74,.3)}
+.key-reset{background:none;border:1px solid var(--border);color:var(--dim);font-size:.6rem;padding:.1rem .4rem;border-radius:2px;cursor:pointer;margin-left:.3rem}
+
+.section{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);margin-bottom:1rem;overflow:hidden}
+.section-header{padding:.9rem 1.1rem;cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center}
+.section-title{font-size:.82rem;text-transform:uppercase;letter-spacing:.18em;color:var(--ink);font-weight:500;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.badge{display:inline-block;padding:.12rem .5rem;color:var(--acc);border:1px solid var(--border);border-radius:2px;font-size:.58rem;letter-spacing:.12em;font-weight:600}
+.badge.soft{color:var(--dim)}
+.chevron{font-size:.68rem;color:var(--faint);transition:transform .3s}
+.section.open .chevron{transform:rotate(180deg);color:var(--acc)}
+.section-body{display:none}
+.section.open .section-body{display:block}
+.section-content{padding:0 1.1rem 1.1rem}
+
+.upload-zone{border:2px dashed var(--border);border-radius:var(--r);padding:1.5rem 1rem;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg2);margin-bottom:.8rem}
+.upload-zone.drag,.upload-zone:active{border-color:var(--acc);background:var(--bg3)}
+.upload-zone.loading{opacity:.5;pointer-events:none}
+.upload-zone input[type=file]{display:none}
+.upload-icon{font-size:2rem;margin-bottom:.4rem;opacity:.6}
+.upload-text{font-size:.88rem;color:var(--ink);margin-bottom:.2rem}
+.upload-hint{font-size:.7rem;color:var(--dim)}
+.or{font-size:.65rem;color:var(--faint);text-align:center;margin:.2rem 0 .5rem;letter-spacing:.2em}
+
+.images-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:.5rem;margin:.8rem 0}
+.image-card{position:relative;border-radius:var(--r);overflow:hidden;border:1px solid var(--border);background:var(--bg2);aspect-ratio:1}
+.image-card img{width:100%;height:100%;object-fit:cover;display:block}
+.image-card .rm{position:absolute;top:3px;right:3px;background:rgba(0,0,0,.7);color:#fff;border:none;width:22px;height:22px;border-radius:50%;font-size:11px;cursor:pointer}
+.image-card .img-name{position:absolute;bottom:0;left:0;right:0;padding:.2rem .4rem;background:linear-gradient(transparent,rgba(10,10,18,.9));font-size:.58rem;font-family:var(--fm);color:var(--acc);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.image-card .src{position:absolute;top:3px;left:3px;background:rgba(0,0,0,.7);color:var(--acc);font-size:.55rem;padding:.05rem .3rem;border-radius:2px;font-family:var(--fm)}
+
+.badge-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.45rem}
+.badge-card{padding:.6rem .5rem;border-radius:var(--r);border:1px solid var(--border);background:var(--bg2);cursor:pointer;text-align:center;transition:all .15s;user-select:none}
+.badge-card.selected{border-color:var(--acc);background:rgba(229,193,90,.08);box-shadow:0 0 12px rgba(229,193,90,.15)}
+.badge-card .be{font-size:1.3rem;display:block;margin-bottom:.2rem}
+.badge-card .bn{font-size:.65rem;font-weight:600}
+.badge-card.selected .bn{color:var(--acc)}
+.check{display:flex;gap:.5rem;align-items:flex-start;font-size:.75rem;color:var(--dim);margin-top:.8rem;cursor:pointer}
+.check input{margin-top:.2rem;accent-color:var(--acc)}
+
+.preset-grid{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.2rem}
+.preset{padding:.35rem .7rem;border-radius:14px;border:1px solid var(--border);background:var(--bg2);color:var(--dim);font-size:.68rem;cursor:pointer;user-select:none}
+.preset:hover,.preset.on{border-color:var(--acc);color:var(--acc)}
+
+.ads-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:1rem;margin-top:.8rem}
+.ad-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.ad-card.generating{border-color:var(--acc)}.ad-card.done{border-color:var(--ok)}.ad-card.error{border-color:var(--err)}
+.ad-card-header{padding:.5rem .7rem;font-size:.68rem;font-family:var(--fm);color:var(--dim);display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);gap:.4rem}
+.ad-card-body{padding:.6rem}
+.ad-card-body video{width:100%;border-radius:2px;background:#000;display:block;aspect-ratio:9/16;object-fit:cover}
+.ad-placeholder{width:100%;aspect-ratio:9/16;background:#0a0a12;border-radius:2px;display:flex;align-items:center;justify-content:center;color:var(--faint);font-size:.68rem;font-family:var(--fm);flex-direction:column;gap:.4rem;text-align:center;padding:.5rem}
+.spinner-mini{width:14px;height:14px;border:2px solid rgba(229,193,90,.2);border-top-color:var(--acc);border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ad-actions{display:flex;gap:.3rem;margin-top:.4rem}
+.ad-actions a,.ad-actions button{flex:1;font-size:.64rem;color:var(--acc);text-decoration:none;text-align:center;padding:.4rem;border:1px solid var(--border);border-radius:3px;background:none;font-family:var(--fm);letter-spacing:.05em;text-transform:uppercase;cursor:pointer}
+
+.player-overlay{position:fixed;inset:0;background:#000;z-index:2000;display:none;align-items:center;justify-content:center}
+.player-overlay.visible{display:flex}
+#player-video{max-width:100vw;max-height:100vh;width:auto;height:100%;object-fit:contain;background:#000}
+.player-hint{position:absolute;bottom:1rem;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.6);font-size:.72rem;font-family:var(--fm);letter-spacing:.15em;text-transform:uppercase;pointer-events:none;transition:opacity .5s;background:rgba(0,0,0,.4);padding:.3rem .7rem;border-radius:3px}
+.player-hint.hidden{opacity:0}
+.player-close{position:absolute;top:1rem;right:1rem;background:rgba(0,0,0,.6);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:50%;width:40px;height:40px;font-size:1rem;cursor:pointer}
+.player-controls{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:.9rem 1rem;margin-top:.6rem}
+.player-row{display:flex;gap:.5rem;flex-wrap:wrap}
+.player-row .btn{margin-bottom:0;flex:1;min-width:130px}
+
+.status-bar{position:fixed;bottom:230px;left:0;right:0;background:var(--bg3);border-top:1px solid var(--border);padding:.7rem 1rem;font-size:.75rem;display:flex;align-items:center;gap:.6rem;transform:translateY(200%);transition:transform .35s,bottom .3s;z-index:150;font-family:var(--fm)}
+.status-bar.visible{transform:translateY(0)}
+body.dbg-collapsed .status-bar{bottom:38px}
+.spinner{width:12px;height:12px;border:2px solid rgba(229,193,90,.2);border-top-color:var(--acc);border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0}
+
+.debug-panel{position:fixed;bottom:0;left:0;right:0;height:220px;background:#05050a;border-top:2px solid var(--acc);z-index:200;display:flex;flex-direction:column;font-family:var(--fm);transition:height .3s ease}
+.debug-panel.collapsed{height:38px}
+.debug-header{display:flex;justify-content:space-between;align-items:center;padding:.4rem .7rem;background:linear-gradient(90deg,#0f0f18,#1a1a28);border-bottom:1px solid var(--border);flex-shrink:0;user-select:none;cursor:pointer}
+.debug-title{font-size:.7rem;color:var(--acc);letter-spacing:.12em;text-transform:uppercase;font-weight:600;display:flex;align-items:center;gap:.5rem}
+.debug-badge{font-size:.58rem;padding:.1rem .35rem;background:var(--acc);color:var(--bg);border-radius:2px;font-weight:700}
+.debug-actions{display:flex;gap:.25rem}
+.debug-actions button{background:transparent;border:1px solid var(--border);color:var(--dim);font-size:.6rem;padding:.25rem .5rem;border-radius:2px;cursor:pointer;font-family:inherit}
+.debug-body{flex:1;overflow-y:auto;padding:.5rem .7rem 1rem;font-size:.7rem;line-height:1.45;color:#c8c8d0}
+.debug-entry{margin-bottom:.25rem;padding:.2rem .4rem;border-left:2px solid var(--faint);border-radius:2px;word-break:break-word}
+.debug-entry.success{border-left-color:var(--ok)}
+.debug-entry.warn{border-left-color:var(--warn)}
+.debug-entry.error{border-left-color:var(--err);color:#f0a0a0}
+.debug-entry.api,.debug-entry.ai{border-left-color:var(--acc)}
+.debug-entry.response,.debug-entry.state{border-left-color:var(--acc2)}
+.debug-time{color:var(--faint);margin-right:.4rem;font-size:.62rem}
+.debug-cat{color:var(--acc);font-weight:600;margin-right:.35rem;font-size:.62rem}
+.debug-data{margin-top:.25rem;padding:.35rem .45rem;background:#0a0a12;border:1px solid var(--border);border-radius:2px;font-size:.65rem;color:#a8d8b0;max-height:160px;overflow:auto;white-space:pre-wrap;word-break:break-all}
+.hidden{display:none!important}
+@media(max-width:480px){h1{font-size:1.5rem}.ads-grid{grid-template-columns:1fr}.debug-panel{height:190px}.status-bar{bottom:200px}}
+</style>
+</head>
+<body>
+
+<header>
+<h1>Beverage Ad Studio</h1>
+<p class="subtitle">Photos de boissons → publicités animées avec badges NOUVEAU · PROMO · FLASH</p>
+</header>
+
+<div class="banner">
+<strong>Comment ça marche :</strong> ajoutez vos photos (fichier, glisser-déposer, coller, ou <span class="hl">lien Web</span>) → choisissez un badge → décrivez l'ambiance → l'IA génère une pub vidéo 9:16 par photo. Vos clés et réglages sont <strong>mémorisés automatiquement</strong>.
+</div>
+
+<!-- API -->
+<div class="panel" id="api-panel">
+<label class="label" for="api-keys-input">Clés API Agnes — une par ligne (1 clé = 1 worker parallèle)</label>
+<textarea id="api-keys-input" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx&#10;sk-yyyyyyyyyyyyyyyyyyyyyyyy" rows="3" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+<div class="row" style="margin-bottom:.6rem">
+<button type="button" class="btn btn-sm" id="api-toggle-btn">👁 Afficher</button>
+<button type="button" class="btn btn-sm" id="api-clear-btn">🗑 Oublier les clés</button>
+</div>
+<div class="status" id="api-status-line"><span class="dot"></span><span id="api-status-text">Aucune clé API enregistrée</span></div>
+<div class="keys-list" id="api-keys-status"></div>
+<div class="hint">Enregistrement automatique dès la saisie · clés stockées uniquement sur cet appareil</div>
+</div>
+
+<!-- 1 PHOTOS -->
+<div class="section open" id="section-photos">
+<div class="section-header" data-toggle="section-photos">
+<span class="section-title">📸 1 · Photos de boissons <span class="badge" id="photos-badge">0</span></span>
+<span class="chevron">▼</span>
+</div>
+<div class="section-body"><div class="section-content">
+<div class="upload-zone" id="upload-zone">
+<input type="file" id="file-input" accept="image/*" multiple>
+<div class="upload-icon">＋</div>
+<div class="upload-text">Ajoutez vos photos de boissons</div>
+<div class="upload-hint">Toucher, glisser-déposer ou coller (Ctrl+V)</div>
+</div>
+<div class="or">— OU PAR LIEN WEB —</div>
+<div class="row">
+<input type="url" id="url-input" placeholder="https://exemple.com/canette.jpg (plusieurs liens : séparez par espace)" autocomplete="off" autocapitalize="off">
+<button type="button" class="btn btn-sm" id="url-add-btn">Ajouter</button>
+</div>
+<div class="images-grid" id="images-grid"></div>
+</div></div>
+</div>
+
+<!-- 2 BADGE -->
+<div class="section open" id="section-badge">
+<div class="section-header" data-toggle="section-badge">
+<span class="section-title">🏷️ 2 · Badge promotionnel <span class="badge soft">optionnel</span></span>
+<span class="chevron">▼</span>
+</div>
+<div class="section-body"><div class="section-content">
+<div class="badge-grid" id="badge-grid"></div>
+<label class="check"><input type="checkbox" id="burn-badge" checked><span><strong style="color:var(--ink)">Incruster le badge sur la photo</strong> avant l'envoi — texte net et bien orthographié (l'IA écrit mal le texte toute seule).</span></label>
+</div></div>
+</div>
+
+<!-- 3 AMBIANCE -->
+<div class="section open" id="section-ambiance">
+<div class="section-header" data-toggle="section-ambiance">
+<span class="section-title">✨ 3 · Ambiance & style <span class="badge soft">optionnel</span></span>
+<span class="chevron">▼</span>
+</div>
+<div class="section-body"><div class="section-content">
+<label class="label" for="ambiance-input">Décrivez l'ambiance (ou choisissez un preset)</label>
+<textarea id="ambiance-input" placeholder="Ex : Lumière dorée du coucher de soleil, éclaboussures, glaçons au ralenti…"></textarea>
+<div class="preset-grid" id="preset-grid"></div>
+<div style="margin-top:.9rem;">
+<label class="label" for="duration-select">Durée de chaque pub</label>
+<select id="duration-select">
+<option value="81">3 secondes (81 frames)</option>
+<option value="121" selected>5 secondes (121 frames) — recommandé</option>
+<option value="161">6,7 secondes (161 frames)</option>
+<option value="241">10 secondes (241 frames)</option>
+</select>
+</div>
+</div></div>
+</div>
+
+<button type="button" class="btn btn-primary" id="generate-btn" disabled>🎬 Générer les publicités</button>
+<button type="button" class="btn btn-stop" id="stop-btn">⏹ Arrêter la génération</button>
+
+<!-- RÉSULTATS -->
+<div class="section hidden" id="section-ads">
+<div class="section-header" data-toggle="section-ads">
+<span class="section-title">🎞️ Publicités générées <span class="badge" id="ads-count">0</span></span>
+<span class="chevron">▼</span>
+</div>
+<div class="section-body"><div class="section-content">
+<div class="ads-grid" id="ads-grid"></div>
+<div class="player-controls">
+<div class="player-row">
+<button type="button" class="btn" id="play-all-btn" disabled>▶ Lire toutes les pubs</button>
+<button type="button" class="btn" id="retry-btn" disabled>↻ Relancer les échecs</button>
+</div>
+</div>
+</div></div>
+</div>
+
+<div class="status-bar" id="status-bar"><div class="spinner"></div><span id="status-text">Préparation…</span></div>
+<div class="toast" id="toast"><span id="toast-icon">✓</span><span id="toast-text">Message</span></div>
+
+<div class="debug-panel" id="debug-panel">
+<div class="debug-header" id="debug-header">
+<div class="debug-title">🖥️ Console <span class="debug-badge" id="debug-count">0</span></div>
+<div class="debug-actions">
+<button type="button" id="debug-copy-btn">Copier</button>
+<button type="button" id="debug-clear-btn">Effacer</button>
+<button type="button" id="debug-collapse-btn">−</button>
+</div>
+</div>
+<div class="debug-body" id="debug-body"></div>
+</div>
+
+<div class="player-overlay" id="player-overlay">
+<video id="player-video" playsinline></video>
+<button class="player-close" id="player-close" aria-label="Fermer">✕</button>
+<div class="player-hint" id="player-hint">Échap ou ✕ pour quitter</div>
+</div>
+
+<script>
+'use strict';
+// ═══════════ CONFIG ═══════════
+const API_BASE='https://apihub.agnes-ai.com/v1';
+const POLL_BASE='https://apihub.agnes-ai.com/agnesapi';
+const MODEL_VIDEO='agnes-video-v2.0';
+const FRAME_RATE=24;
+const VIDEO_FIRST_POLL_DELAY_SEC=60;
+const VIDEO_POLL_INTERVALS=[8,8,12,12,20,20,25];
+const VIDEO_MAX_POLL_ATTEMPTS=100;
+const API_KEYS_STORAGE='beverage_ad_keys_v1';
+const SETTINGS_STORAGE='beverage_ad_settings_v1';
+const DEBUG_MAX=600;
+const MAX_IMAGE_SIZE=15*1024*1024;
+
+const BADGES=[
+{id:'new',name:'NOUVEAU',emoji:'✨',lines:['NOUVEAU'],colors:['#d62828','#ffffff'],shape:'star',prompt:'bright red and white starburst sticker reading "NOUVEAU"'},
+{id:'flash',name:'FLASH',emoji:'⚡',lines:['⚡ FLASH'],colors:['#ffd400','#111111'],shape:'star',prompt:'electric yellow and black sticker reading "FLASH" with a lightning bolt'},
+{id:'promo',name:'PROMO',emoji:'🏷️',lines:['PROMO'],colors:['#f77f00','#ffffff'],shape:'tag',prompt:'orange and white discount tag reading "PROMO"'},
+{id:'new-flash',name:'NOUVEAU + FLASH',emoji:'✨⚡',lines:['NOUVEAU','⚡ FLASH'],colors:['#d62828','#ffd400'],shape:'star',prompt:'red and yellow starburst sticker reading "NOUVEAU" and "FLASH"'},
+{id:'promo-flash',name:'PROMO + FLASH',emoji:'🏷️⚡',lines:['PROMO','⚡ FLASH'],colors:['#f77f00','#ffd400'],shape:'tag',prompt:'orange and yellow tag reading "PROMO" and "FLASH"'},
+{id:'new-promo',name:'NOUVEAU + PROMO',emoji:'✨🏷️',lines:['NOUVEAU','PROMO'],colors:['#d62828','#ffffff'],shape:'star',prompt:'red and orange starburst reading "NOUVEAU" and "PROMO"'},
+{id:'best-seller',name:'BEST-SELLER',emoji:'🏆',lines:['BEST','SELLER'],colors:['#111111','#e5c15a'],shape:'circle',prompt:'gold and black round seal reading "BEST-SELLER"'},
+{id:'limited',name:'ÉDITION LIMITÉE',emoji:'⏳',lines:['ÉDITION','LIMITÉE'],colors:['#5a189a','#e0e0e0'],shape:'circle',prompt:'purple and silver round seal reading "ÉDITION LIMITÉE"'}
+];
+
+const AMBIANCE_PRESETS=[
+['☀️ Été doré','Lumière dorée du coucher de soleil, éclaboussures de boisson fraîche, glaçons qui tombent au ralenti, énergie estivale'],
+['⚪ Studio épuré','Studio épuré fond blanc, éclairage produit high-key, rotation lente, reflets brillants, design minimaliste'],
+['🌃 Néon urbain','Néon urbain nocturne, reflets colorés sur la bouteille, ambiance cyberpunk pastel, mouvement de caméra fluide'],
+['🌿 Tropical','Forêt tropicale luxuriante, feuilles qui bougent, lumière filtrée, boisson posée sur pierre moussue'],
+['🎨 Pastel premium','Fond dégradé pastel, particules flottantes, produit centré, mouvement orbital lent, design publicitaire premium'],
+['❄️ Hiver','Ambiance hivernale, neige qui tombe, vapeur visible, lumière chaude contrastée'],
+['🏝️ Plage','Plage paradisiaque, vagues turquoise, sable blanc, boisson avec condensation, soleil éclatant'],
+['🖤 Luxe sombre','Fond sombre dramatique, éclairage spot sur le produit, fumée légère, contraste fort, design luxe']
+];
+
+const state={keyPool:[],images:[],selectedBadge:null,burnBadge:true,ambiance:'',durationFrames:121,ads:[],isRunning:false,stopRequested:false,isPlaying:false,workingPollBuilderName:null};
+
+// ═══════════ UTILS ═══════════
+const $=id=>document.getElementById(id);
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
+function setStatus(t){const b=$('status-bar');if(t){b.classList.add('visible');$('status-text').textContent=t}else b.classList.remove('visible')}
+let toastT=null;
+function showToast(m,type='success',d=2500){const t=$('toast');t.classList.remove('visible','success','error','warn');void t.offsetWidth;$('toast-icon').textContent={success:'✓',error:'✕',warn:'⚠'}[type]||'✓';$('toast-text').textContent=m;t.classList.add(type,'visible');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('visible'),d)}
+const nowTime=()=>new Date().toLocaleTimeString('fr-FR',{hour12:false});
+// Attente interruptible
+async function waitSec(sec,onTick){for(let r=sec;r>0;r--){if(state.stopRequested)throw new Error('Arrêt demandé');onTick&&onTick(r);await sleep(1000)}}
+
+// ═══════════ DEBUG ═══════════
+let debugCount=0,debugEntries=[],debugCollapsed=false;
+function debugLog(level,cat,msg,data){const body=$('debug-body');const time=nowTime();const e=document.createElement('div');e.className='debug-entry '+level;let h='<span class="debug-time">'+time+'</span><span class="debug-cat">['+esc(cat)+']</span><span>'+esc(msg)+'</span>';let ds='';if(data!=null){ds=typeof data==='string'?data:(()=>{try{return JSON.stringify(data,null,2)}catch(x){return String(data)}})();if(ds.length>2500)ds=ds.slice(0,2500)+'\n…[tronqué]';h+='<pre class="debug-data">'+esc(ds)+'</pre>'}e.innerHTML=h;body.appendChild(e);debugEntries.push({time,cat,msg,ds});if(debugEntries.length>DEBUG_MAX)debugEntries.shift();while(body.children.length>DEBUG_MAX)body.removeChild(body.firstChild);body.scrollTop=body.scrollHeight;$('debug-count').textContent=++debugCount}
+function clearDebug(){$('debug-body').innerHTML='';debugEntries=[];debugCount=0;$('debug-count').textContent='0'}
+function copyDebug(){const txt=debugEntries.map(e=>e.time+' ['+e.cat+'] '+e.msg+(e.ds?'\n'+e.ds:'')).join('\n');const fin=ok=>showToast(ok?'Console copiée':'Copie impossible',ok?'success':'error');if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(txt).then(()=>fin(true)).catch(()=>legacyCopy(txt,fin))}else legacyCopy(txt,fin)}
+function legacyCopy(text,cb){const ta=document.createElement('textarea');ta.value=text;ta.style.cssText='position:fixed;opacity:0';document.body.appendChild(ta);ta.select();let ok=false;try{ok=document.execCommand('copy')}catch(e){}ta.remove();cb(ok)}
+function toggleDebugCollapse(){debugCollapsed=!debugCollapsed;$('debug-panel').classList.toggle('collapsed',debugCollapsed);document.body.classList.toggle('dbg-collapsed',debugCollapsed);$('debug-collapse-btn').textContent=debugCollapsed?'+':'−';saveSettings()}
+
+// ═══════════ RÉGLAGES PERSISTANTS ═══════════
+function saveSettings(){try{localStorage.setItem(SETTINGS_STORAGE,JSON.stringify({badge:state.selectedBadge,burn:state.burnBadge,ambiance:state.ambiance,duration:state.durationFrames,dbg:debugCollapsed}))}catch(e){}}
+function loadSettings(){try{const s=JSON.parse(localStorage.getItem(SETTINGS_STORAGE)||'{}');if(s.badge&&BADGES.some(b=>b.id===s.badge))state.selectedBadge=s.badge;if(typeof s.burn==='boolean')state.burnBadge=s.burn;if(typeof s.ambiance==='string')state.ambiance=s.ambiance;if([81,121,161,241].includes(s.duration))state.durationFrames=s.duration;if(s.dbg)toggleDebugCollapse()}catch(e){}}
+
+// ═══════════ CLÉS API (auto-enregistrement) ═══════════
+function getStoredKeys(){try{const a=JSON.parse(localStorage.getItem(API_KEYS_STORAGE)||'[]');return Array.isArray(a)?a.filter(k=>typeof k==='string'&&k.trim()):[]}catch(e){return[]}}
+function setStoredKeys(keys){try{localStorage.setItem(API_KEYS_STORAGE,JSON.stringify(keys));return true}catch(e){return false}}
+function parseKeys(raw){return[...new Set(String(raw||'').split(/[\s,;]+/).map(s=>s.trim()).filter(s=>/^sk-[A-Za-z0-9_\-]{8,}$/.test(s)))]}
+function refreshKeyPool(){const stored=getStoredKeys();const old=state.keyPool;state.keyPool=stored.map(k=>old.find(p=>p.key===k)||{key:k,lastUsed:0,cooldownUntil:0,active:true,errorCount:0})}
+const hasActiveKey=()=>state.keyPool.some(k=>k.active);
+function getReadyKey(){const now=Date.now();const act=state.keyPool.filter(k=>k.active);if(!act.length)return{key:null,waitMs:0};const ready=act.filter(k=>k.cooldownUntil<=now);if(!ready.length){const s=Math.min(...act.map(k=>k.cooldownUntil));return{key:null,waitMs:Math.max(1000,s-now)}}ready.sort((a,b)=>a.lastUsed-b.lastUsed);return{key:ready[0],waitMs:0}}
+async function acquireKey(label,pinned){
+  // Si une clé est imposée (tâche créée avec elle), on l'attend au lieu d'en changer
+  while(true){
+    if(state.stopRequested)throw new Error('Arrêt demandé');
+    if(pinned){if(!pinned.active)throw new Error('Clé de la tâche désactivée');const w=pinned.cooldownUntil-Date.now();if(w<=0){pinned.lastUsed=Date.now();return pinned}await sleep(Math.min(w,2000));continue}
+    const{key,waitMs}=getReadyKey();if(key){key.lastUsed=Date.now();return key}
+    if(!waitMs)throw new Error('Aucune clé API active');
+    debugLog('warn',label,'Toutes les clés en cooldown — attente '+Math.round(waitMs/1000)+'s');await sleep(waitMs);
+  }
+}
+function renderKeysStatus(){const el=$('api-keys-status');if(!state.keyPool.length){el.innerHTML='';return}const now=Date.now();el.innerHTML=state.keyPool.map((k,i)=>{let s='<span class="key-state">Active</span>';if(!k.active)s='<span class="key-state dead">Inactive</span><button class="key-reset" data-reset="'+i+'">Réactiver</button>';else if(k.cooldownUntil>now)s='<span class="key-state cool">Cooldown '+Math.ceil((k.cooldownUntil-now)/1000)+'s</span>';return'<div class="key-row"><span class="key-id">#'+(i+1)+' · '+esc(k.key.slice(0,6))+'…'+esc(k.key.slice(-4))+'</span><span>'+s+'</span></div>'}).join('')}
+let keySaveT=null;
+function autoSaveKeys(){clearTimeout(keySaveT);keySaveT=setTimeout(()=>{const keys=parseKeys($('api-keys-input').value);const prev=getStoredKeys();if(keys.join()===prev.join())return;if(!setStoredKeys(keys)){showToast('Stockage local indisponible (navigation privée ?)','error');return}refreshKeyPool();updateApiStatus();if(keys.length)showToast(keys.length+' clé(s) enregistrée(s) automatiquement','success');debugLog('success','CLÉS',keys.length+' clé(s) enregistrée(s)')},600)}
+function updateApiStatus(){const n=state.keyPool.filter(k=>k.active).length;$('api-panel').classList.toggle('ok',n>0);$('api-status-line').classList.toggle('ok',n>0);$('api-status-text').textContent=n?(n+' clé(s) active(s) · '+n+' vidéo(s) en parallèle'):'Aucune clé API enregistrée';renderKeysStatus();updateGenerateBtn()}
+
+// ═══════════ FETCH API ═══════════
+async function apiFetch(url,options,label,maxAttempts,pinnedKey){
+  options=options||{};maxAttempts=maxAttempts>0?maxAttempts:6;let lastErr=null;
+  for(let attempt=0;attempt<maxAttempts;attempt++){
+    const keyObj=await acquireKey(label,pinnedKey);
+    const kid=keyObj.key.slice(-4);
+    let preview=null;if(options.body){try{preview=JSON.parse(options.body,(k,v)=>typeof v==='string'&&v.length>140?v.slice(0,80)+'…[len '+v.length+']':v)}catch(e){}}
+    debugLog('api','REQ '+label,(options.method||'GET')+' '+url.slice(0,120)+' · clé '+kid+' ('+(attempt+1)+'/'+maxAttempts+')',preview);
+    try{
+      const t0=Date.now();
+      const res=await fetch(url,Object.assign({},options,{headers:Object.assign({},options.headers,{'Authorization':'Bearer '+keyObj.key})}));
+      const dt=Date.now()-t0;let errTxt='';if(!res.ok){try{errTxt=(await res.clone().text()).slice(0,1200)}catch(e){}}
+      debugLog('response','RÉP '+label,'HTTP '+res.status+' en '+dt+'ms',errTxt||undefined);
+      if(res.ok){keyObj.errorCount=0;return res}
+      if(res.status===401||res.status===403){
+        // Seule une vraie requête de création compte pour désactiver une clé (le polling sondé peut renvoyer 403 sans que la clé soit mauvaise)
+        if(!options.noKeyPenalty){keyObj.errorCount++;if(keyObj.errorCount>=3){keyObj.active=false;debugLog('error','CLÉ','Clé '+kid+' désactivée (3 refus)');renderKeysStatus();updateGenerateBtn()}}
+      }
+      if([400,401,403,404,413,422].includes(res.status)){const e=new Error('HTTP '+res.status+' — '+errTxt.slice(0,300));e.status=res.status;e.fatal=true;throw e}
+      if(res.status===429){const ra=parseInt(res.headers.get('Retry-After')||'0',10);const wait=ra>0?ra:Math.min(120,20+attempt*15);keyObj.cooldownUntil=Date.now()+wait*1000;debugLog('warn','RATELIMIT','Clé '+kid+' → cooldown '+wait+'s');renderKeysStatus();continue}
+      const wait=Math.min(60,8+attempt*6);setStatus('Service occupé — reprise dans '+wait+'s');await waitSec(wait);
+    }catch(e){
+      if(e.fatal||e.message==='Arrêt demandé')throw e;
+      lastErr=e;
+      if(e instanceof TypeError){
+        const origin=location.origin||'null';
+        const local=!/^https?:$/.test(location.protocol)||origin==='null';
+        debugLog('error','DIAGNOSTIC','Requête bloquée par le navigateur avant d\'atteindre le serveur (aucun code HTTP). Origine de la page : '+origin+' · en ligne : '+navigator.onLine+(local?' · ⚠ Page ouverte en local (fichier/aperçu) : l\'API refuse cette origine. Ouvrez-la depuis GitHub Pages (https://).':' · Causes possibles : CORS refusé pour cette origine, bloqueur de contenu, VPN/DNS, ou API indisponible.'));
+        if(local){const e2=new Error('Page ouverte en local — hébergez-la sur GitHub Pages (https) pour appeler l\'API');e2.fatal=true;throw e2}
+      }
+      const wait=Math.min(45,4+attempt*4);debugLog('warn','RÉSEAU',e.message+' — retry dans '+wait+'s');await waitSec(wait);
+    }
+  }
+  throw lastErr||new Error('Tentatives épuisées ('+label+')');
+}
+
+// ═══════════ VIDÉO ═══════════
+function decodeCompositeId(c){if(typeof c!=='string'||!c.startsWith('video_'))return null;let b=c.slice(6).replace(/-/g,'+').replace(/_/g,'/');while(b.length%4)b+='=';try{const m=atob(b).match(/video_id:([^;]+)/);return m?m[1].trim():null}catch(e){return null}}
+
+async function createVideoTask(prompt,image,frames){
+  const body={model:MODEL_VIDEO,prompt,num_frames:frames,frame_rate:FRAME_RATE};
+  if(image)body.image=image;
+  debugLog('ai','PROMPT',prompt.length+' caractères',prompt);
+  const keyObj=await acquireKey('Video Task');
+  const res=await apiFetch(API_BASE+'/videos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)},'Video Task',4,keyObj);
+  const data=await res.json();
+  debugLog('response','VIDÉO CRÉÉE','Réponse',data);
+  const compositeId=data.video_id||data.id||data.task_id;
+  if(!compositeId)throw new Error('Réponse sans video_id');
+  return{compositeId,innerId:decodeCompositeId(compositeId),raw:data,keyObj};
+}
+
+function buildIdCandidates(o){const ids=[];const push=(l,v)=>{if(v&&!ids.some(x=>x.value===v))ids.push({label:l,value:v})};push('composite',o.compositeId);push('inner',o.innerId);for(const f of['id','task_id','request_id'])push('raw.'+f,o.raw&&o.raw[f]);return ids}
+
+const POLL_URL_BUILDERS=[
+{name:'agnesapi',build:id=>POLL_BASE+'?video_id='+encodeURIComponent(id)+'&model_name='+encodeURIComponent(MODEL_VIDEO)},
+{name:'v1-rest',build:id=>API_BASE+'/videos/'+encodeURIComponent(id)},
+{name:'v1-rest-status',build:id=>API_BASE+'/videos/'+encodeURIComponent(id)+'/status'},
+{name:'v1-rest-model',build:id=>API_BASE+'/videos/'+encodeURIComponent(id)+'?model_name='+encodeURIComponent(MODEL_VIDEO)}
+];
+
+function extractVideoUrl(d){return(d.metadata&&d.metadata.url)||d.url||d.video_url||(d.output&&(d.output.url||d.output.video_url))||(Array.isArray(d.data)&&d.data[0]&&d.data[0].url)||null}
+
+async function pollVideo(task,onProgress){
+  const candidates=buildIdCandidates(task);
+  if(!candidates.length)throw new Error('Aucun ID exploitable');
+  await waitSec(VIDEO_FIRST_POLL_DELAY_SEC,r=>onProgress('Préparation — '+r+'s'));
+  let working=null;let consecutiveFail=0;
+  for(let attempt=0;attempt<VIDEO_MAX_POLL_ATTEMPTS;attempt++){
+    if(attempt>0){const w=VIDEO_POLL_INTERVALS[Math.min(attempt-1,VIDEO_POLL_INTERVALS.length-1)];await waitSec(w,r=>onProgress(onProgress.last?onProgress.last+' · '+r+'s':'Création — '+r+'s'))}
+    // Endpoint déjà validé en premier
+    const approaches=[];
+    if(working)approaches.push(working);
+    const pref=POLL_URL_BUILDERS.find(b=>b.name===state.workingPollBuilderName);
+    const ordered=pref?[pref,...POLL_URL_BUILDERS.filter(b=>b!==pref)]:POLL_URL_BUILDERS;
+    for(const b of ordered)for(const c of candidates)if(!approaches.some(a=>a.builder===b&&a.id===c.value))approaches.push({builder:b,id:c.value,label:c.label});
+    let ok=false;
+    for(const ap of(working?[working]:approaches)){
+      try{
+        const res=await apiFetch(ap.builder.build(ap.id),{method:'GET',noKeyPenalty:true},'Polling',2,task.keyObj);
+        const d=await res.json();
+        if(!working){working=ap;state.workingPollBuilderName=ap.builder.name;debugLog('success','POLLING','Endpoint validé : '+ap.builder.name+' · '+ap.label)}
+        ok=true;consecutiveFail=0;
+        const status=String(d.status||d.state||'unknown').toLowerCase();
+        const progress=Math.round(Number(d.progress)||0);
+        onProgress.last='Création — '+progress+'%';onProgress(onProgress.last);
+        debugLog('info','POLLING','status='+status+' progress='+progress);
+        if(['completed','succeeded','success','done','finished'].includes(status)){const u=extractVideoUrl(d);if(!u)throw Object.assign(new Error('Terminé mais pas d\'URL'),{fatal:true});return u}
+        if(['failed','error','cancelled','canceled'].includes(status))throw Object.assign(new Error('Échec côté serveur ('+(d.error&&(d.error.message||d.error)||status)+')'),{fatal:true,final:true});
+        break;
+      }catch(e){
+        if(e.final||e.message==='Arrêt demandé'||e.message.startsWith('Terminé'))throw e;
+        debugLog('warn','POLLING',ap.builder.name+' : '+e.message.slice(0,120));
+      }
+    }
+    if(!ok){consecutiveFail++;if(working&&consecutiveFail>=3){debugLog('warn','POLLING','Endpoint validé en échec — nouvelle exploration');working=null}}
+  }
+  throw new Error('Délai maximal dépassé');
+}
+
+function buildAdPrompt(ambiance){
+  const badge=BADGES.find(b=>b.id===state.selectedBadge);
+  const burned=badge&&state.burnBadge;
+  return[
+    'PRODUCT ADVERTISEMENT VIDEO — 9:16 VERTICAL, COMMERCIAL QUALITY.',
+    'SUBJECT: the exact beverage product shown in the starting image. Preserve it IDENTICALLY: same can/bottle shape, label, colors, logo and proportions. Do NOT redesign or deform it.',
+    'ACTION: slow, elegant camera movement around the product. Subtle liquid motion, condensation droplets, light reflections. The product stays CENTERED and PROMINENT.',
+    'AMBIANCE: '+(ambiance||'premium commercial lighting, soft reflections, shallow depth of field.'),
+    burned?'PROMOTIONAL STICKER: the starting image already contains a promotional sticker in the top-right corner. Keep it EXACTLY as it is — fixed, sharp, unchanged, never moving, never redrawn.':'',
+    (badge&&!burned)?'PROMOTIONAL BADGE: a '+badge.prompt+' fixed in the top-right corner for the whole video, sharp and readable.':'',
+    'CAMERA: one continuous smooth movement — slow orbit, push-in or gentle reveal. No cuts, no shake.',
+    'STYLE: high-end beverage commercial, cinematic lighting, realistic glass and liquid physics, rich appetizing colors, 35mm film grain, professional color grading.',
+    'FORMAT: 9:16 vertical, 24fps. No other text, no subtitles, no watermark'+(badge?' apart from the promotional sticker':'')+'.'
+  ].filter(Boolean).join('\n\n');
+}
+
+// ═══════════ IMAGES ═══════════
+function fileToDataUri(blob){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=()=>rej(new Error('Lecture impossible'));r.readAsDataURL(blob)})}
+function loadImg(src,cors){return new Promise((res,rej)=>{const i=new Image();if(cors)i.crossOrigin='anonymous';i.onload=()=>res(i);i.onerror=()=>rej(new Error('Image illisible'));i.src=src})}
+function imgToJpeg(img,maxSide){const s=Math.min(1,maxSide/Math.max(img.naturalWidth,img.naturalHeight));const c=document.createElement('canvas');c.width=Math.round(img.naturalWidth*s);c.height=Math.round(img.naturalHeight*s);const x=c.getContext('2d');x.fillStyle='#ffffff';x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',.9)}
+
+async function processBlob(blob,name){
+  if(!blob.type.startsWith('image/'))throw new Error('Pas une image');
+  if(blob.size>MAX_IMAGE_SIZE)throw new Error('Image > 15 Mo');
+  const raw=await fileToDataUri(blob);const img=await loadImg(raw);
+  return{id:uid(),dataUri:imgToJpeg(img,1280),name,source:'fichier'};
+}
+
+async function addFromUrl(url){
+  url=url.trim();if(!url)return null;
+  if(url.startsWith('data:image/')){const img=await loadImg(url);return{id:uid(),dataUri:imgToJpeg(img,1280),name:'image collée',source:'data'}}
+  let u;try{u=new URL(url)}catch(e){throw new Error('Lien invalide')}
+  if(!/^https?:$/.test(u.protocol))throw new Error('Lien http(s) requis');
+  const name=decodeURIComponent(u.pathname.split('/').pop()||u.hostname).slice(0,40);
+  // 1) fetch direct (si le site autorise CORS)
+  try{const r=await fetch(u.href,{mode:'cors'});if(r.ok){const b=await r.blob();if(b.type.startsWith('image/')){const it=await processBlob(b,name);it.source='web';return it}}}catch(e){debugLog('info','URL','fetch CORS refusé, essai via <img>')}
+  // 2) <img crossOrigin> + canvas
+  try{const img=await loadImg(u.href,true);return{id:uid(),dataUri:imgToJpeg(img,1280),name,source:'web'}}catch(e){}
+  // 3) le site bloque la copie : on vérifie que l'image s'affiche et on transmet le lien tel quel à l'API
+  await loadImg(u.href,false);
+  debugLog('warn','URL','Image protégée (CORS) : le lien sera envoyé directement à l\'API, badge incrusté impossible pour celle-ci');
+  return{id:uid(),dataUri:null,remoteUrl:u.href,name,source:'lien'};
+}
+
+async function addMany(tasks,label){
+  const zone=$('upload-zone');zone.classList.add('loading');let ok=0,ko=0;
+  for(let i=0;i<tasks.length;i++){setStatus(label+' '+(i+1)+'/'+tasks.length+'…');try{const it=await tasks[i]();if(it){state.images.push(it);ok++}}catch(e){ko++;debugLog('error','IMAGE',e.message)}}
+  zone.classList.remove('loading');setStatus(null);renderImages();updateGenerateBtn();
+  if(ok)showToast(ok+' photo(s) ajoutée(s)'+(ko?' · '+ko+' échec(s)':''),ko?'warn':'success');else if(ko)showToast('Impossible de récupérer l\'image','error');
+}
+function handleFiles(files){const list=Array.from(files).filter(f=>f.type.startsWith('image/'));if(list.length)addMany(list.map(f=>()=>processBlob(f,f.name)),'Chargement')}
+function handleUrls(text){const urls=String(text).split(/\s+/).filter(s=>/^(https?:\/\/|data:image\/)/i.test(s));if(!urls.length){showToast('Collez un lien commençant par http(s)://','warn');return}addMany(urls.map(u=>()=>addFromUrl(u)),'Récupération');$('url-input').value=''}
+
+// Incrustation du badge sur l'image (texte net, garanti)
+async function composeWithBadge(item){
+  const badge=BADGES.find(b=>b.id===state.selectedBadge);
+  if(!badge||!state.burnBadge||!item.dataUri)return item.dataUri||item.remoteUrl;
+  const img=await loadImg(item.dataUri);
+  const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;const x=c.getContext('2d');x.drawImage(img,0,0);
+  const R=Math.round(Math.min(c.width,c.height)*.15);const cx=c.width-R*1.25,cy=R*1.25;
+  x.save();x.translate(cx,cy);x.rotate(.2);x.shadowColor='rgba(0,0,0,.45)';x.shadowBlur=R*.25;x.shadowOffsetY=R*.06;x.fillStyle=badge.colors[0];x.beginPath();
+  if(badge.shape==='star'){const n=16;for(let i=0;i<n*2;i++){const r=i%2?R*.82:R;const a=Math.PI*i/n;x.lineTo(Math.cos(a)*r,Math.sin(a)*r)}}
+  else if(badge.shape==='tag'){const w=R*1.9,h=R*1.05;x.moveTo(-w/2+h/2,-h/2);x.lineTo(w/2,-h/2);x.lineTo(w/2,h/2);x.lineTo(-w/2+h/2,h/2);x.lineTo(-w/2,0)}
+  else x.arc(0,0,R,0,Math.PI*2);
+  x.closePath();x.fill();x.shadowColor='transparent';
+  x.strokeStyle=badge.colors[1];x.lineWidth=R*.05;x.stroke();
+  x.fillStyle=badge.colors[1];x.textAlign='center';x.textBaseline='middle';
+  const lines=badge.lines;const maxW=badge.shape==='tag'?R*1.45:R*1.4;let fs=R*(lines.length>1?.36:.46);x.font='900 '+fs+'px Arial Black,Arial,sans-serif';
+  const widest=Math.max(...lines.map(l=>x.measureText(l).width));if(widest>maxW){fs*=maxW/widest;x.font='900 '+fs+'px Arial Black,Arial,sans-serif'}
+  lines.forEach((l,i)=>x.fillText(l,badge.shape==='tag'?R*.12:0,(i-(lines.length-1)/2)*fs*1.1));
+  x.restore();
+  return c.toDataURL('image/jpeg',.9);
+}
+
+// ═══════════ RENDU ═══════════
+function renderImages(){
+  $('images-grid').innerHTML=state.images.map(img=>'<div class="image-card"><img src="'+esc(img.dataUri||img.remoteUrl)+'" alt="" loading="lazy">'+(img.source==='web'||img.source==='lien'?'<span class="src">🌐</span>':'')+'<div class="img-name">'+esc(img.name)+'</div><button class="rm" data-remove="'+img.id+'" aria-label="Retirer">✕</button></div>').join('');
+  $('photos-badge').textContent=state.images.length;
+}
+function renderBadges(){$('badge-grid').innerHTML=BADGES.map(b=>'<div class="badge-card'+(state.selectedBadge===b.id?' selected':'')+'" data-badge="'+b.id+'"><span class="be">'+b.emoji+'</span><span class="bn">'+b.name+'</span></div>').join('')}
+function renderPresets(){$('preset-grid').innerHTML=AMBIANCE_PRESETS.map((p,i)=>'<div class="preset'+(state.ambiance===p[1]?' on':'')+'" data-preset="'+i+'" title="'+esc(p[1])+'">'+esc(p[0])+'</div>').join('')}
+function updateGenerateBtn(){const b=$('generate-btn');const k=hasActiveKey(),n=state.images.length;b.disabled=!k||!n||state.isRunning;b.textContent=state.isRunning?'Génération en cours…':!k?'🔑 Ajoutez vos clés API':!n?'📸 Ajoutez des photos de boissons':'🎬 Générer '+n+' publicité'+(n>1?'s animées':' animée')}
+
+// Rendu complet uniquement quand la structure change ; la progression met à jour le texte seul (sinon les vidéos se rechargent chaque seconde)
+function renderAds(){
+  $('ads-grid').innerHTML=state.ads.map((ad,i)=>'<div class="ad-card" id="ad-'+i+'"></div>').join('');
+  state.ads.forEach((_,i)=>updateAdCard(i));
+}
+function updateAdCard(i){
+  const ad=state.ads[i];const el=$('ad-'+i);if(!el)return;
+  if(ad._rendered===ad.status&&ad.status==='loading'){const p=el.querySelector('.prog');if(p)p.textContent=ad.progress;return}
+  ad._rendered=ad.status;
+  el.className='ad-card '+(ad.status==='done'?'done':ad.status==='error'?'error':'generating');
+  const icon=ad.status==='done'?'<span style="color:var(--ok)">✓</span>':ad.status==='error'?'<span style="color:var(--err)">✕</span>':'<span class="spinner-mini"></span>';
+  let body;
+  if(ad.status==='done')body='<video src="'+esc(ad.url)+'" controls preload="metadata" playsinline loop></video><div class="ad-actions"><button data-dl="'+i+'">⬇ Télécharger</button><button data-copy="'+i+'">🔗 Lien</button></div>';
+  else if(ad.status==='error')body='<div class="ad-placeholder" style="color:var(--err)">'+esc((ad.error||'').slice(0,140))+'</div>';
+  else body='<div class="ad-placeholder"><div class="spinner-mini"></div><span class="prog">'+esc(ad.progress)+'</span></div>';
+  el.innerHTML='<div class="ad-card-header"><span>🍹 Pub '+(i+1)+' · '+esc(ad.image.name.slice(0,18))+'</span>'+icon+'</div><div class="ad-card-body">'+body+'</div>';
+  updateAdsSummary();
+}
+function updateAdsSummary(){const done=state.ads.filter(a=>a.status==='done').length;$('ads-count').textContent=done+'/'+state.ads.length;$('play-all-btn').disabled=!done;$('retry-btn').disabled=state.isRunning||!state.ads.some(a=>a.status==='error')}
+
+async function downloadAd(i){const ad=state.ads[i];const fname='pub-'+(i+1)+'-'+ad.image.name.replace(/\.[^.]+$/,'').replace(/[^\w-]+/g,'_')+'.mp4';
+  try{showToast('Téléchargement…','success',1500);const r=await fetch(ad.url);const b=await r.blob();const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=fname;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000)}
+  catch(e){window.open(ad.url,'_blank','noopener');showToast('Ouvert dans un onglet (maintenez pour enregistrer)','warn',3500)}}
+
+// ═══════════ PIPELINE ═══════════
+async function runQueue(indexes){
+  state.isRunning=true;state.stopRequested=false;
+  $('stop-btn').classList.add('visible');$('section-ads').classList.remove('hidden');$('section-ads').classList.add('open');
+  updateGenerateBtn();updateAdsSummary();
+  const n=Math.max(1,state.keyPool.filter(k=>k.active).length);
+  debugLog('state','START',indexes.length+' pub(s) · '+n+' worker(s)');
+  setStatus('Génération de '+indexes.length+' publicité(s)…');
+  const queue=[...indexes];
+  await Promise.all(Array.from({length:Math.min(n,queue.length)},(_,w)=>(async()=>{while(queue.length&&!state.stopRequested){await generateOneAd(queue.shift(),w)}})()));
+  // Les pubs non traitées après un arrêt ne restent pas bloquées "en cours"
+  state.ads.forEach((a,i)=>{if(a.status==='pending'||a.status==='loading'){a.status='error';a.error='Arrêtée par l\'utilisateur';updateAdCard(i)}});
+  const stopped=state.stopRequested;
+  state.isRunning=false;state.stopRequested=false;$('stop-btn').classList.remove('visible');updateGenerateBtn();updateAdsSummary();
+  const done=state.ads.filter(a=>a.status==='done').length;
+  if(stopped)showToast('Génération arrêtée','warn');else if(done)showToast(done+' publicité(s) prête(s) ✓','success',3500);else showToast('Aucune publicité générée — voir console','error',3500);
+  setStatus(done?'✦ '+done+'/'+state.ads.length+' publicités prêtes ✦':null);await sleep(3000);setStatus(null);
+}
+function startGeneration(){
+  if(state.isRunning)return;
+  if(!hasActiveKey())return showToast('Ajoutez au moins une clé API','error');
+  if(!state.images.length)return showToast('Ajoutez des photos de boissons','error');
+  state.ambiance=$('ambiance-input').value.trim();saveSettings();
+  state.ads=state.images.map(img=>({status:'pending',progress:'En attente…',url:null,error:null,image:img}));
+  renderAds();runQueue(state.ads.map((_,i)=>i));
+}
+function retryFailed(){if(state.isRunning)return;const idx=[];state.ads.forEach((a,i)=>{if(a.status==='error'){Object.assign(a,{status:'pending',progress:'En attente…',error:null});idx.push(i);updateAdCard(i)}});if(idx.length)runQueue(idx)}
+
+async function generateOneAd(i,w){
+  const ad=state.ads[i];
+  ad.status='loading';ad.progress='Préparation de l\'image…';updateAdCard(i);
+  debugLog('info','W'+(w+1),'Pub '+(i+1)+' → '+ad.image.name);
+  try{
+    const image=await composeWithBadge(ad.image);
+    ad.progress='Envoi de la tâche…';updateAdCard(i);
+    const task=await createVideoTask(buildAdPrompt(state.ambiance),image,state.durationFrames);
+    const prog=p=>{ad.progress=p;updateAdCard(i)};
+    ad.url=await pollVideo(task,prog);
+    ad.status='done';ad.progress='Terminé';updateAdCard(i);
+    debugLog('success','W'+(w+1),'Pub '+(i+1)+' prête ✓',ad.url);
+  }catch(e){
+    ad.status='error';ad.error=e.message==='Arrêt demandé'?'Arrêtée par l\'utilisateur':e.message;updateAdCard(i);
+    if(e.message!=='Arrêt demandé')debugLog('error','W'+(w+1),'Pub '+(i+1)+' : '+e.message);
+  }
+}
+
+// ═══════════ LECTEUR (élément <video> natif : son autorisé, pas de souci CORS) ═══════════
+async function playAll(){
+  const ready=state.ads.filter(a=>a.status==='done');if(!ready.length||state.isPlaying)return;
+  state.isPlaying=true;const ov=$('player-overlay'),v=$('player-video'),h=$('player-hint');
+  ov.classList.add('visible');h.classList.remove('hidden');setTimeout(()=>h.classList.add('hidden'),3000);
+  for(const ad of ready){
+    if(!state.isPlaying)break;
+    await new Promise(res=>{const end=()=>{v.onended=v.onerror=null;res()};v.onended=end;v.onerror=end;v._end=end;v.src=ad.url;v.muted=false;v.play().catch(()=>{v.muted=true;v.play().catch(end)})});
+  }
+  stopPlayback();
+}
+function stopPlayback(){state.isPlaying=false;const v=$('player-video');v.pause();if(v._end)v._end();v.removeAttribute('src');v.load();$('player-overlay').classList.remove('visible')}
+
+// ═══════════ INIT ═══════════
+(function init(){
+  loadSettings();
+  // Clés : enregistrement auto à la saisie, au collage et en quittant le champ
+  const ki=$('api-keys-input');
+  ki.value=getStoredKeys().join('\n');
+  ki.addEventListener('input',autoSaveKeys);ki.addEventListener('paste',()=>setTimeout(autoSaveKeys,0));ki.addEventListener('blur',autoSaveKeys);
+  $('api-toggle-btn').addEventListener('click',()=>{const s=ki.classList.toggle('show');$('api-toggle-btn').textContent=s?'🙈 Masquer':'👁 Afficher'});
+  $('api-clear-btn').addEventListener('click',()=>{if(!confirm('Supprimer les clés enregistrées sur cet appareil ?'))return;ki.value='';setStoredKeys([]);refreshKeyPool();updateApiStatus();showToast('Clés supprimées','warn')});
+  $('api-keys-status').addEventListener('click',e=>{const b=e.target.closest('[data-reset]');if(!b)return;const k=state.keyPool[+b.dataset.reset];if(k){k.active=true;k.errorCount=0;k.cooldownUntil=0;updateApiStatus()}});
+
+  document.querySelectorAll('[data-toggle]').forEach(h=>h.addEventListener('click',()=>$(h.dataset.toggle).classList.toggle('open')));
+
+  // Photos
+  const zone=$('upload-zone'),fi=$('file-input');
+  zone.addEventListener('click',()=>fi.click());
+  fi.addEventListener('change',e=>{handleFiles(e.target.files);fi.value=''});
+  zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('drag')});
+  zone.addEventListener('dragleave',()=>zone.classList.remove('drag'));
+  zone.addEventListener('drop',e=>{e.preventDefault();zone.classList.remove('drag');if(e.dataTransfer.files.length)handleFiles(e.dataTransfer.files);else{const t=e.dataTransfer.getData('text/uri-list')||e.dataTransfer.getData('text/plain');if(t)handleUrls(t)}});
+  $('url-add-btn').addEventListener('click',()=>handleUrls($('url-input').value));
+  $('url-input').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();handleUrls(e.target.value)}});
+  document.addEventListener('paste',e=>{const t=e.target;if(t&&(t.tagName==='TEXTAREA'||t.tagName==='INPUT'))return;const files=[...(e.clipboardData&&e.clipboardData.files||[])];if(files.length){handleFiles(files);return}const txt=e.clipboardData&&e.clipboardData.getData('text');if(txt&&/^https?:\/\//i.test(txt.trim()))handleUrls(txt)});
+  $('images-grid').addEventListener('click',e=>{const b=e.target.closest('[data-remove]');if(!b)return;state.images=state.images.filter(x=>x.id!==b.dataset.remove);renderImages();updateGenerateBtn()});
+
+  // Badge / ambiance / durée (mémorisés)
+  $('badge-grid').addEventListener('click',e=>{const c=e.target.closest('[data-badge]');if(!c)return;state.selectedBadge=state.selectedBadge===c.dataset.badge?null:c.dataset.badge;renderBadges();saveSettings()});
+  $('burn-badge').checked=state.burnBadge;$('burn-badge').addEventListener('change',e=>{state.burnBadge=e.target.checked;saveSettings()});
+  $('ambiance-input').value=state.ambiance;
+  $('ambiance-input').addEventListener('input',e=>{state.ambiance=e.target.value;renderPresets();saveSettings()});
+  $('preset-grid').addEventListener('click',e=>{const p=e.target.closest('[data-preset]');if(!p)return;state.ambiance=AMBIANCE_PRESETS[+p.dataset.preset][1];$('ambiance-input').value=state.ambiance;renderPresets();saveSettings()});
+  $('duration-select').value=String(state.durationFrames);
+  $('duration-select').addEventListener('change',e=>{state.durationFrames=parseInt(e.target.value,10);saveSettings()});
+
+  $('generate-btn').addEventListener('click',startGeneration);
+  $('retry-btn').addEventListener('click',retryFailed);
+  $('stop-btn').addEventListener('click',()=>{state.stopRequested=true;debugLog('warn','STOP','Arrêt demandé');setStatus('Arrêt en cours…')});
+  $('ads-grid').addEventListener('click',e=>{const d=e.target.closest('[data-dl]');if(d)return downloadAd(+d.dataset.dl);const c=e.target.closest('[data-copy]');if(c){const u=state.ads[+c.dataset.copy].url;(navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(()=>showToast('Lien copié')).catch(()=>legacyCopy(u,ok=>showToast(ok?'Lien copié':'Copie impossible',ok?'success':'error')))}});
+
+  $('play-all-btn').addEventListener('click',playAll);
+  $('player-close').addEventListener('click',stopPlayback);
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.isPlaying)stopPlayback()});
+  window.addEventListener('beforeunload',e=>{if(state.isRunning){e.preventDefault();e.returnValue=''}});
+
+  $('debug-header').addEventListener('click',e=>{if(e.target.tagName!=='BUTTON')toggleDebugCollapse()});
+  $('debug-collapse-btn').addEventListener('click',e=>{e.stopPropagation();toggleDebugCollapse()});
+  $('debug-clear-btn').addEventListener('click',e=>{e.stopPropagation();clearDebug()});
+  $('debug-copy-btn').addEventListener('click',e=>{e.stopPropagation();copyDebug()});
+
+  refreshKeyPool();updateApiStatus();renderBadges();renderPresets();renderImages();updateGenerateBtn();
+  setInterval(()=>{if(state.keyPool.some(k=>k.cooldownUntil>Date.now()))renderKeysStatus()},1000);
+  debugLog('success','INIT','Beverage Ad Studio prêt · '+state.keyPool.length+' clé(s) restaurée(s)');
+})();
+</script>
+</body>
+</html>
