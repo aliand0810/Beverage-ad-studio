@@ -147,6 +147,14 @@ body.dbg-collapsed .status-bar{bottom:38px}
 .debug-cat{color:var(--acc);font-weight:600;margin-right:.35rem;font-size:.62rem}
 .debug-data{margin-top:.25rem;padding:.35rem .45rem;background:#0a0a12;border:1px solid var(--border);border-radius:2px;font-size:.65rem;color:#a8d8b0;max-height:160px;overflow:auto;white-space:pre-wrap;word-break:break-all}
 .hidden{display:none!important}
+.mode-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.45rem;margin-bottom:1rem}
+.mode-card{padding:.8rem .5rem;border-radius:var(--r);border:1px solid var(--border);background:var(--panel);cursor:pointer;text-align:center;user-select:none}
+.mode-card.selected{border-color:var(--acc);background:rgba(229,193,90,.08);box-shadow:0 0 12px rgba(229,193,90,.15)}
+.mode-card .me{font-size:1.4rem;display:block}
+.mode-card .mn{font-size:.72rem;font-weight:700;display:block;margin-top:.2rem}
+.mode-card.selected .mn{color:var(--acc)}
+.mode-card small{display:block;font-size:.58rem;color:var(--dim);margin-top:.15rem}
+.ad-card-body img.ad-out{width:100%;border-radius:2px;display:block;aspect-ratio:9/16;object-fit:cover;background:#000}
 .opt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.4rem;margin-top:.5rem}
 .var-card{padding:.5rem;border-radius:var(--r);border:1px solid var(--border);background:var(--bg2);cursor:pointer;font-size:.68rem;user-select:none}
 .var-card.selected{border-color:var(--acc);color:var(--acc);background:rgba(229,193,90,.08)}
@@ -183,6 +191,10 @@ body.dbg-collapsed .status-bar{bottom:38px}
 <div class="keys-list" id="api-keys-status"></div>
 <div class="hint">Enregistrement automatique dès la saisie · clés stockées uniquement sur cet appareil</div>
 </div>
+
+<!-- MODE -->
+<div class="label">Que voulez-vous créer ?</div>
+<div class="mode-grid" id="mode-grid"></div>
 
 <!-- 1 PHOTOS -->
 <div class="section open" id="section-photos">
@@ -309,6 +321,11 @@ const SETTINGS_STORAGE='beverage_ad_settings_v1';
 const DEBUG_MAX=600;
 const MAX_IMAGE_SIZE=15*1024*1024;
 const MODEL_TEXT='agnes-2.5-flash';
+const MODES=[
+{id:'video',emoji:'🎬',name:'Vidéo IA',hint:'mouvement réel · clé API'},
+{id:'animated',emoji:'✨',name:'Image animée',hint:'instantané · sans API'},
+{id:'image',emoji:'🖼️',name:'Image promo',hint:'photo + badge · sans API'}
+];
 
 // Catalogue de mouvements (inspiré du catalogue d'angles du Hyperreal Lab)
 const VARIANTS=[
@@ -342,7 +359,7 @@ const AMBIANCE_PRESETS=[
 ['🖤 Luxe sombre','Fond sombre dramatique, éclairage spot sur le produit, fumée légère, contraste fort, design luxe']
 ];
 
-const state={keyPool:[],images:[],selectedBadge:null,burnBadge:true,ambiance:'',durationFrames:121,variants:['orbit'],useAnalysis:true,useFrame:true,ads:[],isRunning:false,stopRequested:false,isPlaying:false,workingPollBuilderName:null};
+const state={keyPool:[],images:[],selectedBadge:null,burnBadge:true,ambiance:'',durationFrames:121,outputMode:'video',variants:['orbit'],useAnalysis:true,useFrame:true,ads:[],isRunning:false,stopRequested:false,isPlaying:false,workingPollBuilderName:null};
 
 // ═══════════ UTILS ═══════════
 const $=id=>document.getElementById(id);
@@ -365,8 +382,8 @@ function legacyCopy(text,cb){const ta=document.createElement('textarea');ta.valu
 function toggleDebugCollapse(){debugCollapsed=!debugCollapsed;$('debug-panel').classList.toggle('collapsed',debugCollapsed);document.body.classList.toggle('dbg-collapsed',debugCollapsed);$('debug-collapse-btn').textContent=debugCollapsed?'+':'−';saveSettings()}
 
 // ═══════════ RÉGLAGES PERSISTANTS ═══════════
-function saveSettings(){try{localStorage.setItem(SETTINGS_STORAGE,JSON.stringify({badge:state.selectedBadge,burn:state.burnBadge,ambiance:state.ambiance,duration:state.durationFrames,dbg:debugCollapsed,variants:state.variants,useAnalysis:state.useAnalysis,useFrame:state.useFrame}))}catch(e){}}
-function loadSettings(){try{const s=JSON.parse(localStorage.getItem(SETTINGS_STORAGE)||'{}');if(s.badge&&BADGES.some(b=>b.id===s.badge))state.selectedBadge=s.badge;if(typeof s.burn==='boolean')state.burnBadge=s.burn;if(typeof s.ambiance==='string')state.ambiance=s.ambiance;if([81,121,161,241].includes(s.duration))state.durationFrames=s.duration;if(Array.isArray(s.variants)){const v=s.variants.filter(x=>VARIANTS.some(y=>y.id===x));if(v.length)state.variants=v}if(typeof s.useAnalysis==='boolean')state.useAnalysis=s.useAnalysis;if(typeof s.useFrame==='boolean')state.useFrame=s.useFrame;if(s.dbg)toggleDebugCollapse()}catch(e){}}
+function saveSettings(){try{localStorage.setItem(SETTINGS_STORAGE,JSON.stringify({badge:state.selectedBadge,burn:state.burnBadge,ambiance:state.ambiance,duration:state.durationFrames,dbg:debugCollapsed,variants:state.variants,useAnalysis:state.useAnalysis,useFrame:state.useFrame,mode:state.outputMode}))}catch(e){}}
+function loadSettings(){try{const s=JSON.parse(localStorage.getItem(SETTINGS_STORAGE)||'{}');if(s.badge&&BADGES.some(b=>b.id===s.badge))state.selectedBadge=s.badge;if(typeof s.burn==='boolean')state.burnBadge=s.burn;if(typeof s.ambiance==='string')state.ambiance=s.ambiance;if([81,121,161,241].includes(s.duration))state.durationFrames=s.duration;if(Array.isArray(s.variants)){const v=s.variants.filter(x=>VARIANTS.some(y=>y.id===x));if(v.length)state.variants=v}if(typeof s.useAnalysis==='boolean')state.useAnalysis=s.useAnalysis;if(typeof s.useFrame==='boolean')state.useFrame=s.useFrame;if(MODES.some(m=>m.id===s.mode))state.outputMode=s.mode;if(s.dbg)toggleDebugCollapse()}catch(e){}}
 
 // ═══════════ CLÉS API (auto-enregistrement) ═══════════
 function getStoredKeys(){try{const a=JSON.parse(localStorage.getItem(API_KEYS_STORAGE)||'[]');return Array.isArray(a)?a.filter(k=>typeof k==='string'&&k.trim()):[]}catch(e){return[]}}
@@ -548,16 +565,10 @@ async function addMany(tasks,label){
 function handleFiles(files){const list=Array.from(files).filter(f=>f.type.startsWith('image/'));if(list.length)addMany(list.map(f=>()=>processBlob(f,f.name)),'Chargement')}
 function handleUrls(text){const urls=String(text).split(/\s+/).filter(s=>/^(https?:\/\/|data:image\/)/i.test(s));if(!urls.length){showToast('Collez un lien commençant par http(s)://','warn');return}addMany(urls.map(u=>()=>addFromUrl(u)),'Récupération');$('url-input').value=''}
 
-// Incrustation du badge sur l'image (texte net, garanti)
-async function composeWithBadge(item){
-  const badge=BADGES.find(b=>b.id===state.selectedBadge);
-  if(!item.dataUri)return item.remoteUrl;
-  const base=state.useFrame?await frameTo916(item.dataUri):item.dataUri;
-  if(!badge||!state.burnBadge)return base;
-  const img=await loadImg(base);
-  const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;const x=c.getContext('2d');x.drawImage(img,0,0);
-  const R=Math.round(Math.min(c.width,c.height)*.15);const cx=c.width-R*1.25,cy=R*1.25;
-  x.save();x.translate(cx,cy);x.rotate(.2);x.shadowColor='rgba(0,0,0,.45)';x.shadowBlur=R*.25;x.shadowOffsetY=R*.06;x.fillStyle=badge.colors[0];x.beginPath();
+function drawBadge(x,W,H,badge,scale,rot){
+  const R0=Math.round(Math.min(W,H)*.15);
+  const R=Math.round(Math.min(W,H)*.15*scale);const cx=W-R0*1.25,cy=R0*1.25;
+  x.save();x.translate(cx,cy);x.rotate(.2+rot);x.shadowColor='rgba(0,0,0,.45)';x.shadowBlur=R*.25;x.shadowOffsetY=R*.06;x.fillStyle=badge.colors[0];x.beginPath();
   if(badge.shape==='star'){const n=16;for(let i=0;i<n*2;i++){const r=i%2?R*.82:R;const a=Math.PI*i/n;x.lineTo(Math.cos(a)*r,Math.sin(a)*r)}}
   else if(badge.shape==='tag'){const w=R*1.9,h=R*1.05;x.moveTo(-w/2+h/2,-h/2);x.lineTo(w/2,-h/2);x.lineTo(w/2,h/2);x.lineTo(-w/2+h/2,h/2);x.lineTo(-w/2,0)}
   else x.arc(0,0,R,0,Math.PI*2);
@@ -568,6 +579,17 @@ async function composeWithBadge(item){
   const widest=Math.max(...lines.map(l=>x.measureText(l).width));if(widest>maxW){fs*=maxW/widest;x.font='900 '+fs+'px Arial Black,Arial,sans-serif'}
   lines.forEach((l,i)=>x.fillText(l,badge.shape==='tag'?R*.12:0,(i-(lines.length-1)/2)*fs*1.1));
   x.restore();
+}
+
+// Incrustation du badge sur l'image (texte net, garanti)
+async function composeWithBadge(item,noBadge){
+  const badge=noBadge?null:BADGES.find(b=>b.id===state.selectedBadge);
+  if(!item.dataUri)return item.remoteUrl;
+  const base=state.useFrame?await frameTo916(item.dataUri):item.dataUri;
+  if(!badge||!state.burnBadge)return base;
+  const img=await loadImg(base);
+  const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;const x=c.getContext('2d');x.drawImage(img,0,0);
+  drawBadge(x,c.width,c.height,badge,1,0);
   return c.toDataURL('image/jpeg',.9);
 }
 
@@ -600,6 +622,45 @@ async function frameTo916(src){
   return c.toDataURL('image/jpeg',.9);
 }
 
+// ═══════════ IMAGE ANIMÉE (canvas → vidéo, 100 % local) ═══════════
+function pickRecorderMime(){const c=['video/mp4;codecs=avc1','video/mp4','video/webm;codecs=vp9','video/webm'];return c.find(m=>window.MediaRecorder&&MediaRecorder.isTypeSupported(m))||''}
+async function renderAnimated(item,variant,seconds,onProgress){
+  const mime=pickRecorderMime();if(!mime)throw new Error('Enregistrement vidéo non supporté par ce navigateur');
+  const baseSrc=await composeWithBadge(item,true);const img=await loadImg(baseSrc);
+  const badge=state.burnBadge?BADGES.find(b=>b.id===state.selectedBadge):null;
+  const W=720,H=1280;const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
+  const id=variant?variant.id:'push';
+  const parts=Array.from({length:40},()=>({x:Math.random()*W,y:H+Math.random()*H,r:2+Math.random()*7,v:.3+Math.random()*.9}));
+  const cover=Math.max(W/img.naturalWidth,H/img.naturalHeight);
+  function frame(t){
+    const e=t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+    let z=1.08,dx=0,dy=0,rot=0;
+    if(id==='push')z=1+.22*e;
+    else if(id==='orbit'){z=1.12;dx=Math.sin(t*Math.PI*2)*30;rot=Math.sin(t*Math.PI*2)*.015}
+    else if(id==='top'){z=1.18;dy=-90+180*e}
+    else if(id==='macro')z=1.45-.37*e;
+    else if(id==='splash')z=1.06+.03*Math.sin(t*Math.PI*6);
+    else if(id==='reveal')z=1.12-.06*e;
+    x.save();x.fillStyle='#000';x.fillRect(0,0,W,H);
+    x.translate(W/2+dx,H/2+dy);x.rotate(rot);x.scale(z*cover,z*cover);
+    x.drawImage(img,-img.naturalWidth/2,-img.naturalHeight/2);x.restore();
+    if(id==='reveal'){x.fillStyle='rgba(0,0,0,'+(.85*(1-Math.min(1,t*1.6)))+')';x.fillRect(0,0,W,H)}
+    const sx=-W*.6+(W*2.2)*((t*1.3)%1);const g=x.createLinearGradient(sx-120,0,sx+120,H*.3);
+    g.addColorStop(0,'rgba(255,255,255,0)');g.addColorStop(.5,'rgba(255,255,255,'+(id==='reveal'?.35:.18)+')');g.addColorStop(1,'rgba(255,255,255,0)');
+    x.fillStyle=g;x.fillRect(0,0,W,H);
+    if(id==='splash'||id==='macro'){x.fillStyle='rgba(255,255,255,.55)';parts.forEach(p=>{let py=(p.y-t*H*1.6*p.v)%(H*2);if(py<0)py+=H*2;x.beginPath();x.arc(p.x+Math.sin(t*9+p.r)*8,py,p.r,0,Math.PI*2);x.fill()})}
+    if(badge){const pop=t<.12?Math.min(1,t/.12*1.15):1+.06*Math.sin(t*Math.PI*8);drawBadge(x,W,H,badge,pop,Math.sin(t*Math.PI*4)*.05)}
+  }
+  frame(0);
+  const stream=c.captureStream(30);const rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:6e6});const chunks=[];
+  rec.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
+  const done=new Promise(r=>rec.onstop=r);rec.start(250);
+  const t0=performance.now(),dur=seconds*1000;
+  await new Promise((res,rej)=>{(function loop(){if(state.stopRequested){rec.stop();return rej(new Error('Arrêt demandé'))}const el=performance.now()-t0;frame(Math.min(1,el/dur));onProgress('Animation — '+Math.round(Math.min(1,el/dur)*100)+'%');if(el<dur)requestAnimationFrame(loop);else{rec.stop();res()}})()});
+  await done;
+  return URL.createObjectURL(new Blob(chunks,{type:mime.split(';')[0]}));
+}
+
 // ═══════════ RENDU ═══════════
 function renderImages(){
   $('images-grid').innerHTML=state.images.map(img=>'<div class="image-card"><img src="'+esc(img.dataUri||img.remoteUrl)+'" alt="" loading="lazy">'+(img.source==='web'||img.source==='lien'?'<span class="src">🌐</span>':'')+'<div class="img-name">'+esc(img.name)+'</div><button class="rm" data-remove="'+img.id+'" aria-label="Retirer">✕</button></div>').join('');
@@ -607,8 +668,16 @@ function renderImages(){
 }
 function renderBadges(){$('badge-grid').innerHTML=BADGES.map(b=>'<div class="badge-card'+(state.selectedBadge===b.id?' selected':'')+'" data-badge="'+b.id+'"><span class="be">'+b.emoji+'</span><span class="bn">'+b.name+'</span></div>').join('')}
 function renderPresets(){$('preset-grid').innerHTML=AMBIANCE_PRESETS.map((p,i)=>'<div class="preset'+(state.ambiance===p[1]?' on':'')+'" data-preset="'+i+'" title="'+esc(p[1])+'">'+esc(p[0])+'</div>').join('')}
+function renderModes(){$('mode-grid').innerHTML=MODES.map(m=>'<div class="mode-card'+(state.outputMode===m.id?' selected':'')+'" data-mode="'+m.id+'"><span class="me">'+m.emoji+'</span><span class="mn">'+m.name+'</span><small>'+m.hint+'</small></div>').join('');
+  const vid=state.outputMode==='video',img=state.outputMode==='image';
+  $('api-panel').style.display=vid?'':'none';
+  $('section-variants').style.display=img?'none':'';
+  $('duration-select').parentElement.style.display=img?'none':'';
+  $('use-analysis').parentElement.style.display=vid?'':'none';
+  $('ambiance-input').style.display=vid?'':'none';$('preset-grid').style.display=vid?'':'none';$('ambiance-input').previousElementSibling.style.display=vid?'':'none';
+  updateGenerateBtn()}
 function renderVariants(){$('variant-grid').innerHTML=VARIANTS.map(v=>'<div class="var-card'+(state.variants.includes(v.id)?' selected':'')+'" data-variant="'+v.id+'">'+v.name+'<small>'+v.hint+'</small></div>').join('');$('variants-badge').textContent=state.variants.length+' / photo';updateGenerateBtn()}
-function updateGenerateBtn(){const b=$('generate-btn');const k=hasActiveKey(),n=state.images.length*Math.max(1,state.variants.length);b.disabled=!k||!n||state.isRunning;b.textContent=state.isRunning?'Génération en cours…':!k?'🔑 Ajoutez vos clés API':!n?'📸 Ajoutez des photos de boissons':'🎬 Générer '+n+' publicité'+(n>1?'s animées':' animée')}
+function updateGenerateBtn(){const b=$('generate-btn');const vid=state.outputMode==='video';const k=!vid||hasActiveKey(),n=state.images.length*(state.outputMode==='image'?1:Math.max(1,state.variants.length));b.disabled=!k||!n||state.isRunning;b.textContent=state.isRunning?'Génération en cours…':!k?'🔑 Ajoutez vos clés API':!n?'📸 Ajoutez des photos de boissons':(state.outputMode==='image'?'🖼️ Créer '+n+' image'+(n>1?'s':'')+' promo':state.outputMode==='animated'?'✨ Créer '+n+' image'+(n>1?'s':'')+' animée'+(n>1?'s':''):'🎬 Générer '+n+' vidéo'+(n>1?'s':'')+' IA')}
 
 // Rendu complet uniquement quand la structure change ; la progression met à jour le texte seul (sinon les vidéos se rechargent chaque seconde)
 function renderAds(){
@@ -622,17 +691,17 @@ function updateAdCard(i){
   el.className='ad-card '+(ad.status==='done'?'done':ad.status==='error'?'error':'generating');
   const icon=ad.status==='done'?'<span style="color:var(--ok)">✓</span>':ad.status==='error'?'<span style="color:var(--err)">✕</span>':'<span class="spinner-mini"></span>';
   let body;
-  if(ad.status==='done')body='<video src="'+esc(ad.url)+'" controls preload="metadata" playsinline loop></video><div class="ad-actions"><button data-dl="'+i+'">⬇ Télécharger</button><button data-copy="'+i+'">🔗 Lien</button></div>';
+  if(ad.status==='done')body=(ad.mode==='image'?'<img class="ad-out" src="'+esc(ad.url)+'" alt="">':'<video src="'+esc(ad.url)+'" controls preload="metadata" playsinline loop muted></video>')+'<div class="ad-actions"><button data-dl="'+i+'">⬇ Télécharger</button>'+(ad.mode==='video'?'<button data-copy="'+i+'">🔗 Lien</button>':'')+'</div>';
   else if(ad.status==='error')body='<div class="ad-placeholder" style="color:var(--err)">'+esc((ad.error||'').slice(0,140))+'</div>';
   else body='<div class="ad-placeholder"><div class="spinner-mini"></div><span class="prog">'+esc(ad.progress)+'</span></div>';
   const A=ad.analysis;const extra=(A?'<div class="ad-analysis">🔎 '+esc([A.product,A.container,A.liquid].filter(Boolean).join(' · '))+'</div>':'')+(ad.prompt?'<details class="ad-prompt"><summary>🎬 Prompt vidéo</summary><pre>'+esc(ad.prompt)+'</pre><div class="ad-actions"><button data-cprompt="'+i+'">Copier le prompt</button></div></details>':'');
   if(ad.status==='loading'&&ad.startImage)body=body.replace('<div class="spinner-mini"></div>','<img src="'+esc(ad.startImage)+'" alt=""><div class="spinner-mini"></div>');
-  el.innerHTML='<div class="ad-card-header"><span>🍹 Pub '+(i+1)+' · '+esc(ad.image.name.slice(0,14))+'<span class="ad-tag">'+esc(ad.variant?ad.variant.name:'')+'</span></span>'+icon+'</div><div class="ad-card-body">'+body+extra+'</div>';
+  el.innerHTML='<div class="ad-card-header"><span>'+(ad.mode==='image'?'🖼️ ':'🍹 ')+'Pub '+(i+1)+' · '+esc(ad.image.name.slice(0,14))+'<span class="ad-tag">'+esc(ad.mode==='image'?'🖼️ Image':ad.mode==='animated'?'✨ '+(ad.variant?ad.variant.name:''):(ad.variant?ad.variant.name:''))+'</span></span>'+icon+'</div><div class="ad-card-body">'+body+extra+'</div>';
   updateAdsSummary();
 }
 function updateAdsSummary(){const done=state.ads.filter(a=>a.status==='done').length;$('ads-count').textContent=done+'/'+state.ads.length;$('play-all-btn').disabled=!done;$('retry-btn').disabled=state.isRunning||!state.ads.some(a=>a.status==='error')}
 
-async function downloadAd(i){const ad=state.ads[i];const fname='pub-'+(i+1)+'-'+ad.image.name.replace(/\.[^.]+$/,'').replace(/[^\w-]+/g,'_')+'.mp4';
+async function downloadAd(i){const ad=state.ads[i];const fname='pub-'+(i+1)+'-'+ad.image.name.replace(/\.[^.]+$/,'').replace(/[^\w-]+/g,'_')+'.'+(ad.mode==='image'?'jpg':ad.ext||'mp4');
   try{showToast('Téléchargement…','success',1500);const r=await fetch(ad.url);const b=await r.blob();const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=fname;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000)}
   catch(e){window.open(ad.url,'_blank','noopener');showToast('Ouvert dans un onglet (maintenez pour enregistrer)','warn',3500)}}
 
@@ -641,7 +710,7 @@ async function runQueue(indexes){
   state.isRunning=true;state.stopRequested=false;
   $('stop-btn').classList.add('visible');$('section-ads').classList.remove('hidden');$('section-ads').classList.add('open');
   updateGenerateBtn();updateAdsSummary();
-  const n=Math.max(1,state.keyPool.filter(k=>k.active).length);
+  const n=state.ads[indexes[0]]&&state.ads[indexes[0]].mode==='video'?Math.max(1,state.keyPool.filter(k=>k.active).length):1;
   debugLog('state','START',indexes.length+' pub(s) · '+n+' worker(s)');
   setStatus('Génération de '+indexes.length+' publicité(s)…');
   const queue=[...indexes];
@@ -656,10 +725,10 @@ async function runQueue(indexes){
 }
 function startGeneration(){
   if(state.isRunning)return;
-  if(!hasActiveKey())return showToast('Ajoutez au moins une clé API','error');
+  if(state.outputMode==='video'&&!hasActiveKey())return showToast('Ajoutez au moins une clé API','error');
   if(!state.images.length)return showToast('Ajoutez des photos de boissons','error');
   state.ambiance=$('ambiance-input').value.trim();saveSettings();
-  const vs=VARIANTS.filter(v=>state.variants.includes(v.id));state.ads=[];state.images.forEach(img=>(vs.length?vs:[null]).forEach(v=>state.ads.push({status:'pending',progress:'En attente…',url:null,error:null,image:img,variant:v})));
+  const vs=VARIANTS.filter(v=>state.variants.includes(v.id));state.ads=[];const mode=state.outputMode;state.images.forEach(img=>((mode==='image'||!vs.length)?[null]:vs).forEach(v=>state.ads.push({mode,status:'pending',progress:'En attente…',url:null,error:null,image:img,variant:v})));
   renderAds();runQueue(state.ads.map((_,i)=>i));
 }
 function retryFailed(){if(state.isRunning)return;const idx=[];state.ads.forEach((a,i)=>{if(a.status==='error'){Object.assign(a,{status:'pending',progress:'En attente…',error:null});idx.push(i);updateAdCard(i)}});if(idx.length)runQueue(idx)}
@@ -669,6 +738,8 @@ async function generateOneAd(i,w){
   ad.status='loading';ad.progress='Préparation de l\'image…';updateAdCard(i);
   debugLog('info','W'+(w+1),'Pub '+(i+1)+' → '+ad.image.name);
   try{
+    if(ad.mode==='image'){ad.progress='Composition…';updateAdCard(i);const out=await composeWithBadge(ad.image);if(!out||!out.startsWith('data:'))throw new Error('Image protégée par son site : ajoutez-la en fichier');ad.url=out;ad.status='done';ad._rendered=null;updateAdCard(i);return}
+    if(ad.mode==='animated'){if(!ad.image.dataUri)throw new Error('Image protégée par son site : ajoutez-la en fichier');ad.url=await renderAnimated(ad.image,ad.variant,state.durationFrames/FRAME_RATE,p=>{ad.progress=p;updateAdCard(i)});ad.ext=pickRecorderMime().includes('mp4')?'mp4':'webm';ad.status='done';ad._rendered=null;updateAdCard(i);debugLog('success','ANIMATION','Pub '+(i+1)+' prête ('+ad.ext+')');return}
     if(state.useAnalysis&&!ad.analysis){ad.progress='Analyse IA du produit…';updateAdCard(i);ad.analysis=await analyzeProduct(ad.image);ad._rendered=null}
     const image=await composeWithBadge(ad.image);
     if(image&&image.startsWith('data:'))ad.startImage=image;
@@ -687,7 +758,7 @@ async function generateOneAd(i,w){
 
 // ═══════════ LECTEUR (élément <video> natif : son autorisé, pas de souci CORS) ═══════════
 async function playAll(){
-  const ready=state.ads.filter(a=>a.status==='done');if(!ready.length||state.isPlaying)return;
+  const ready=state.ads.filter(a=>a.status==='done'&&a.mode!=='image');if(state.isPlaying)return;if(!ready.length)return showToast('Aucune vidéo à lire','warn');
   state.isPlaying=true;const ov=$('player-overlay'),v=$('player-video'),h=$('player-hint');
   ov.classList.add('visible');h.classList.remove('hidden');setTimeout(()=>h.classList.add('hidden'),3000);
   for(const ad of ready){
@@ -732,7 +803,8 @@ function stopPlayback(){state.isPlaying=false;const v=$('player-video');v.pause(
   $('duration-select').value=String(state.durationFrames);
   $('duration-select').addEventListener('change',e=>{state.durationFrames=parseInt(e.target.value,10);saveSettings()});
 
-  renderVariants();
+  renderVariants();renderModes();
+  $('mode-grid').addEventListener('click',e=>{const c=e.target.closest('[data-mode]');if(!c||state.isRunning)return;state.outputMode=c.dataset.mode;renderModes();saveSettings()});
   $('variant-grid').addEventListener('click',e=>{const c=e.target.closest('[data-variant]');if(!c)return;const id=c.dataset.variant;if(state.variants.includes(id)){if(state.variants.length===1)return showToast('Gardez au moins une variante','warn');state.variants=state.variants.filter(x=>x!==id)}else state.variants.push(id);renderVariants();saveSettings()});
   $('use-analysis').checked=state.useAnalysis;$('use-analysis').addEventListener('change',e=>{state.useAnalysis=e.target.checked;saveSettings()});
   $('use-frame').checked=state.useFrame;$('use-frame').addEventListener('change',e=>{state.useFrame=e.target.checked;saveSettings()});
